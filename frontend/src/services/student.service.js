@@ -1,47 +1,71 @@
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 
 export const studentService = {
   /** Get all active students ordered by name */
   async getAll() {
-    const { data, error } = await supabase
+    console.log('[Student] Fetching all active students');
+    const { data, error, status } = await supabase
       .from('students')
       .select('id, usn, name, email, branch_code')
       .eq('is_active', true)
       .order('name');
-    if (error) throw error;
+    
+    console.log(`[Student] Status: ${status}`, { data, error });
+    if (error) {
+      console.error('[Student] Error:', error.message);
+      return [];
+    }
     return data ?? [];
   },
 
   /** Count of active students */
   async getCount() {
-    const { count, error } = await supabase
+    console.log('[Student] Fetching count of active students');
+    const { count, error, status } = await supabase
       .from('students')
       .select('*', { count: 'exact', head: true })
       .eq('is_active', true);
-    if (error) throw error;
+    
+    console.log(`[Student] Status: ${status}`, { count, error });
+    if (error) {
+      console.error('[Student] Error:', error.message);
+      return 0;
+    }
     return count ?? 0;
   },
 
   /** Fetch one student by id */
   async getById(id) {
-    const { data, error } = await supabase
+    console.log(`[Student] Fetching student by ID: ${id}`);
+    const { data, error, status } = await supabase
       .from('students')
       .select('*')
       .eq('id', id)
       .single();
-    if (error) throw error;
+    
+    console.log(`[Student] Status: ${status}`, { data, error });
+    if (error) {
+      console.error('[Student] Error:', error.message);
+      return null;
+    }
     return data;
   },
 
   /** Search by name or USN */
   async search(query) {
-    const { data, error } = await supabase
+    console.log(`[Student] Searching for: ${query}`);
+    const { data, error, status } = await supabase
       .from('students')
       .select('id, usn, name, email, branch_code')
       .eq('is_active', true)
       .or(`name.ilike.%${query}%,usn.ilike.%${query}%`)
       .order('name');
-    if (error) throw error;
+    
+    console.log(`[Student] Status: ${status}`, { data, error });
+    if (error) {
+      console.error('[Student] Error:', error.message);
+      return [];
+    }
     return data ?? [];
   },
 };

@@ -9,7 +9,7 @@ if (!apiKey) {
 export const genAI = apiKey ? new GoogleGenerativeAI(apiKey) : null;
 
 // Helper to get the model
-export const getGeminiModel = (modelName = 'gemini-2.0-flash') => {
+export const getGeminiModel = (modelName = 'gemini-2.5-flash') => {
   if (!genAI) return null;
   return genAI.getGenerativeModel({ model: modelName });
 };

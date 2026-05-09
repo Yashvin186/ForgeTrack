@@ -1,44 +1,67 @@
-import { useState, useEffect } from 'react';
-import { CheckCircle2, XCircle, TrendingUp, Calendar } from 'lucide-react';
-
-const MOCK = {
-  totalSessions: 15,
-  present: 13,
-  history: [
-    { id: 1,  date: '2026-04-30', topic: 'Productionizing ML Models',     status: 'present', hrs: 2   },
-    { id: 2,  date: '2026-04-28', topic: 'Large Language Models 101',      status: 'present', hrs: 2   },
-    { id: 3,  date: '2026-04-26', topic: 'ReAct Agent Pattern',            status: 'absent',  hrs: 1.5 },
-    { id: 4,  date: '2026-04-24', topic: 'AI Safety and Ethics',           status: 'present', hrs: 2   },
-    { id: 5,  date: '2026-04-22', topic: 'RAG Fundamentals',               status: 'present', hrs: 2   },
-    { id: 6,  date: '2026-04-20', topic: 'Vector Databases',               status: 'present', hrs: 1.5 },
-    { id: 7,  date: '2026-04-18', topic: 'Fine-Tuning LLMs',               status: 'present', hrs: 2   },
-    { id: 8,  date: '2026-04-16', topic: 'Model Evaluation Metrics',       status: 'present', hrs: 2   },
-    { id: 9,  date: '2026-04-14', topic: 'Prompt Engineering Masterclass', status: 'present', hrs: 2   },
-    { id: 10, date: '2026-04-12', topic: 'Intro to Neural Networks',       status: 'present', hrs: 2   },
-    { id: 11, date: '2026-04-10', topic: 'Python for ML',                  status: 'present', hrs: 2   },
-    { id: 12, date: '2026-04-08', topic: 'Data Preprocessing',             status: 'present', hrs: 2   },
-    { id: 13, date: '2026-04-06', topic: 'Git & Dev Environment Setup',    status: 'present', hrs: 1   },
-    { id: 14, date: '2026-04-04', topic: 'Bootcamp Kickoff',               status: 'absent',  hrs: 1   },
-    { id: 15, date: '2026-04-02', topic: 'Orientation Day',                status: 'present', hrs: 1   },
-  ],
-};
+import { useState, useEffect, useMemo } from 'react';
+import { CheckCircle2, XCircle, TrendingUp, Calendar, AlertCircle, Loader2 } from 'lucide-react';
+import { useUser } from '../context/UserContext';
+import { attendanceService } from '../services/attendance.service';
+import { sessionService } from '../services/session.service';
 
 export default function MyAttendance() {
-  const [userName, setUserName] = useState('Student');
+  const { user } = useUser();
+  const [loading, setLoading] = useState(true);
+  const [history, setHistory] = useState([]);
+  const [totalSessions, setTotalSessions] = useState(0);
+
+  const userName = user?.name?.split(' ')[0] || 'Student';
 
   useEffect(() => {
-    const mockUser = JSON.parse(localStorage.getItem('forge_mock_user') || 'null');
-    if (mockUser?.display_name) setUserName(mockUser.display_name.split(' ')[0]);
-  }, []);
+    if (!user?.id) return;
 
-  const pct = Math.round((MOCK.present / MOCK.totalSessions) * 100);
-  const meetsThreshold = pct >= 75;
+    async function fetchMyData() {
+      try {
+        setLoading(true);
+        const [records, count] = await Promise.all([
+          attendanceService.getByStudent(user.id),
+          sessionService.getCount()
+        ]);
+        setHistory(records);
+        setTotalSessions(count);
+      } catch (err) {
+        console.error('[MyAttendance] Error:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchMyData();
+  }, [user?.id]);
 
-  const barColor = pct >= 75 ? 'bg-success' : pct >= 60 ? 'bg-warning' : 'bg-danger';
-  const pctColor = pct >= 75 ? 'text-success' : pct >= 60 ? 'text-warning' : 'text-danger';
+  const stats = useMemo(() => {
+    const present = history.filter(r => r.present).length;
+    const total = history.length;
+    const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+    const meetsThreshold = pct >= 75;
+    
+    return { present, total, pct, meetsThreshold };
+  }, [history]);
+
+  const barColor = stats.pct >= 75 ? 'bg-success' : stats.pct >= 60 ? 'bg-warning' : 'bg-danger';
+  const pctColor = stats.pct >= 75 ? 'text-success' : stats.pct >= 60 ? 'text-warning' : 'text-danger';
+
+  if (loading) {
+    return (
+      <div className="space-y-10 pb-16 animate-fade-in">
+        <header className="space-y-3">
+          <div className="h-4 bg-surface-raised rounded w-32" />
+          <div className="h-12 bg-surface-raised rounded-xl w-64" />
+        </header>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+           <div className="h-[400px] bg-surface-raised rounded-2xl animate-glass-shimmer" />
+           <div className="lg:col-span-2 h-[400px] bg-surface-raised rounded-2xl animate-glass-shimmer" />
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-10 pb-16">
+    <div className="space-y-10 pb-16 animate-slide-up">
 
       {/* ── Welcome Header ───────────────────────────────────── */}
       <header>
@@ -63,7 +86,7 @@ export default function MyAttendance() {
             </p>
             <div className="flex items-baseline gap-1">
               <span className={`text-[4rem] font-black tabular-nums leading-none ${pctColor}`}>
-                {pct}
+                {stats.pct}
               </span>
               <span className={`text-2xl font-bold ${pctColor}`}>%</span>
             </div>
@@ -72,24 +95,24 @@ export default function MyAttendance() {
           {/* Progress bar */}
           <div className="space-y-2">
             <div className="flex justify-between text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">
-              <span>{MOCK.present} Present</span>
-              <span>{MOCK.totalSessions} Total</span>
+              <span>{stats.present} Present</span>
+              <span>{stats.total} Total</span>
             </div>
             <div className="h-2 w-full bg-surface-inset rounded-full overflow-hidden">
               <div
                 className={`h-full ${barColor} transition-all duration-1000 ease-out rounded-full`}
-                style={{ width: `${pct}%` }}
+                style={{ width: `${stats.pct}%` }}
               />
             </div>
           </div>
 
           {/* Status badge */}
           <div className={`p-4 rounded-xl text-sm font-semibold flex items-center gap-3 ${
-            meetsThreshold
+            stats.meetsThreshold
               ? 'bg-success-bg border border-success-border text-success'
               : 'bg-danger-bg border border-danger-border text-danger'
           }`}>
-            {meetsThreshold
+            {stats.meetsThreshold
               ? <><CheckCircle2 size={16} /> Eligible for Capstone Project</>
               : <><XCircle size={16} /> Below 75% threshold</>
             }
@@ -98,10 +121,10 @@ export default function MyAttendance() {
           {/* Mini stats */}
           <div className="grid grid-cols-2 gap-3 pt-2">
             {[
-              { label: 'Sessions',   value: MOCK.totalSessions, icon: Calendar },
-              { label: 'Attended',   value: MOCK.present,       icon: CheckCircle2 },
-              { label: 'Missed',     value: MOCK.totalSessions - MOCK.present, icon: XCircle },
-              { label: 'Rate',       value: `${pct}%`,           icon: TrendingUp },
+              { label: 'Sessions',   value: stats.total, icon: Calendar },
+              { label: 'Attended',   value: stats.present,       icon: CheckCircle2 },
+              { label: 'Missed',     value: stats.total - stats.present, icon: XCircle },
+              { label: 'Rate',       value: `${stats.pct}%`,           icon: TrendingUp },
             ].map(({ label, value, icon: Icon }) => (
               <div key={label} className="bg-surface-inset rounded-xl p-3 text-center border border-border-subtle">
                 <Icon size={14} className="text-fg-tertiary mx-auto mb-1" />
@@ -117,7 +140,7 @@ export default function MyAttendance() {
           <div className="px-8 py-5 border-b border-border-subtle bg-surface-raised/40 flex items-center justify-between">
             <h3 className="font-bold text-fg-primary">Session History</h3>
             <span className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">
-              {MOCK.totalSessions} sessions
+              {stats.total} sessions
             </span>
           </div>
 
@@ -136,21 +159,21 @@ export default function MyAttendance() {
                 </tr>
               </thead>
               <tbody>
-                {MOCK.history.map(({ id, date, topic, status, hrs }) => (
+                {history.map((rec) => (
                   <tr
-                    key={id}
+                    key={rec.id}
                     className="border-b border-border-subtle hover:bg-surface-raised/40 transition-colors group"
                   >
                     <td className="pl-8 py-4 font-mono text-[12px] text-fg-tertiary whitespace-nowrap">
-                      {new Date(date).toLocaleDateString('en-GB', {
+                      {new Date(rec.sessions?.date || 0).toLocaleDateString('en-GB', {
                         day: '2-digit', month: 'short', year: 'numeric',
                       })}
                     </td>
                     <td className="px-6 py-4 text-sm text-fg-primary font-medium group-hover:text-accent-glow transition-colors">
-                      {topic}
+                      {rec.sessions?.topic || 'Deleted Session'}
                     </td>
                     <td className="px-6 py-4">
-                      {status === 'present' ? (
+                      {rec.present ? (
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold bg-success-bg border border-success-border text-success">
                           <CheckCircle2 size={11} /> Present
                         </span>
@@ -161,10 +184,18 @@ export default function MyAttendance() {
                       )}
                     </td>
                     <td className="pr-8 py-4 text-right font-mono text-[12px] text-fg-tertiary">
-                      {hrs}h
+                      {rec.sessions?.duration_hours || 0}h
                     </td>
                   </tr>
                 ))}
+                {history.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="py-20 text-center">
+                       <AlertCircle size={40} className="mx-auto mb-4 opacity-20 text-fg-tertiary" />
+                       <p className="text-sm text-fg-tertiary font-bold uppercase tracking-widest">No history records found</p>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>

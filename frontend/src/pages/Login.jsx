@@ -1,38 +1,81 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { LogIn, GraduationCap, ShieldCheck } from 'lucide-react';
+import { authService } from '../services/auth.service';
+import { LogIn, GraduationCap, ShieldCheck, UserPlus, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 
 export default function Login() {
   const [isStudent, setIsStudent] = useState(true);
-  const [identifier, setIdentifier] = useState(''); // USN or Email
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [isFirstUser, setIsFirstUser] = useState(false);
+  const navigate = useNavigate();
+
+  useState(() => {
+    async function checkFirst() {
+      const empty = await authService.isUsersTableEmpty();
+      setIsFirstUser(empty);
+    }
+    checkFirst();
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    if (loading) return; // Guard against double clicks
     
-    // TEMPORARY MOCK LOGIN LOGIC
-    setTimeout(() => {
-      const role = isStudent ? 'student' : 'mentor';
-      localStorage.setItem('forge_mock_role', role);
-      localStorage.setItem('forge_mock_user', JSON.stringify({
-        email: identifier || (isStudent ? 'student@forge.local' : 'mentor@theforge.ai'),
-        display_name: isStudent ? 'Student User' : 'Nischay'
-      }));
+    setLoading(true);
+    setError(null);
+    
+    try {
+      let loginEmail = email;
       
-      // Force reload or just navigate (App.jsx will handle the rest)
-      window.location.href = isStudent ? '/me/attendance' : '/dashboard';
-    }, 800);
+      // USN detection
+      if (!email.includes('@')) {
+        console.log(`[Login] Detected USN: ${email}`);
+        const mappedEmail = await authService.getEmailByUSN(email);
+        if (!mappedEmail) {
+          throw new Error('Student record not found for this USN. Please use your email or contact admin.');
+        }
+        loginEmail = mappedEmail;
+        console.log(`[Login] USN mapped to: ${loginEmail}`);
+      }
+
+      console.log(`[Login] Attempting sign in with: ${loginEmail}`);
+      const { data, error: loginError } = await authService.signIn(loginEmail, password);
+      
+      if (loginError) {
+        console.error('[Login] Auth service error:', loginError.message);
+        throw new Error(loginError.friendlyMessage || loginError.message);
+      }
+
+      console.log('[Login] Sign in successful, fetching profile...');
+      const userWithProfile = await authService.getCurrentUser();
+      
+      if (!userWithProfile?.profile) {
+         console.warn('[Login] No public.users profile found for this user');
+      }
+      
+      const role = userWithProfile?.profile?.role || userWithProfile?.user_metadata?.role || (isStudent ? 'student' : 'mentor');
+      console.log(`[Login] Authenticated as: ${role}`);
+      
+      if (role === 'mentor') {
+        navigate('/dashboard');
+      } else {
+        navigate('/me/attendance');
+      }
+      
+    } catch (err) {
+      console.error('[Login] Error:', err);
+      setError(err.message || 'Failed to authenticate');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="app-main flex items-center justify-center p-6 min-h-screen dot-grid">
-      {/* The background glow and dot grid are handled by global classes */}
-      
       <div className="card max-w-[440px] w-full p-12 flex flex-col items-center rounded-2xl relative z-10 border border-border-default shadow-raised">
-        {/* Glow behind the logo */}
         <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent-glow/20 blur-3xl -z-10" />
         
         <div className="w-14 h-14 bg-surface-raised border border-border-default rounded-2xl flex items-center justify-center mb-8 shadow-card">
@@ -44,7 +87,6 @@ export default function Login() {
           <p className="text-label text-fg-tertiary uppercase tracking-[0.2em]">The Forge AI-ML Bootcamp</p>
         </div>
 
-        {/* Tab Toggle - Advanced Pill Style */}
         <div className="bg-surface-inset p-1.5 rounded-xl w-full flex mb-10 border border-border-subtle shadow-inner">
           <button
             onClick={() => setIsStudent(true)}
@@ -72,15 +114,13 @@ export default function Login() {
 
         <form className="w-full space-y-7" onSubmit={handleLogin}>
           <div className="space-y-2.5">
-            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">
-              {isStudent ? 'University Seat Number' : 'Email Address'}
-            </label>
+            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">Email or USN</label>
             <input
-              type={isStudent ? 'text' : 'email'}
-              placeholder={isStudent ? 'e.g. 4SH24CS001' : 'mentor@theforge.ai'}
+              type="text"
+              placeholder="e.g. 4SH22CS000 or email"
               className="input w-full"
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
             />
           </div>
@@ -96,6 +136,15 @@ export default function Login() {
               required
             />
           </div>
+
+          {isFirstUser && (
+            <div className="p-4 bg-accent-glow/10 border border-accent-glow/20 rounded-xl text-accent-glow text-[13px] flex flex-col gap-1 animate-in fade-in slide-in-from-top-2">
+              <p className="font-bold flex items-center gap-2">
+                <Sparkles size={14} /> Welcome to ForgeTrack
+              </p>
+              <p className="opacity-80">The system is ready. Please sign up to create the first mentor account.</p>
+            </div>
+          )}
 
           {error && (
             <div className="p-4 bg-danger-bg border border-danger-border rounded-xl text-danger text-[13px] flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
@@ -113,11 +162,17 @@ export default function Login() {
           </button>
         </form>
 
-        <p className="mt-12 text-fg-tertiary text-[10px] text-center tracking-[0.15em] uppercase font-bold opacity-60">
-          {isStudent 
-            ? 'Default password is your USN' 
-            : 'Access issues? Contact Bootcamp Admin'}
-        </p>
+        <div className="mt-10 flex flex-col items-center gap-4">
+          <p className="text-fg-tertiary text-[11px] font-bold uppercase tracking-widest">
+            New to The Forge?
+          </p>
+          <Link 
+            to="/signup" 
+            className="flex items-center gap-2 text-accent-glow font-bold text-sm hover:underline"
+          >
+            <UserPlus size={16} /> Create an Account
+          </Link>
+        </div>
       </div>
     </div>
   );

@@ -1,42 +1,134 @@
-import { useState } from 'react';
-import { FileText, Link as LinkIcon, Video, Code, Plus, Search, ExternalLink, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { FileText, Link as LinkIcon, Video, Code, Plus, Search, ExternalLink, X, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import Modal from '../components/Modal';
+import Toast from '../components/Toast';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { materialService } from '../services/material.service';
+import { sessionService } from '../services/session.service';
 
 const TYPE_META = {
   pdf:   { label: 'PDF',    icon: FileText,  color: 'text-danger  bg-danger-bg  border-danger-border'  },
   link:  { label: 'Link',   icon: LinkIcon,  color: 'text-info    bg-info-bg    border-info-border'    },
   video: { label: 'Video',  icon: Video,     color: 'text-warning bg-warning-bg border-warning-border' },
   code:  { label: 'Code',   icon: Code,      color: 'text-success bg-success-bg border-success-border' },
+  slides: { label: 'Slides', icon: FileText,  color: 'text-accent-glow bg-accent-glow/10 border-accent-glow/20' },
+  recording: { label: 'Recording', icon: Video, color: 'text-warning bg-warning-bg border-warning-border' },
+  document: { label: 'Doc', icon: FileText, color: 'text-info bg-info-bg border-info-border' },
 };
 
-const MATERIALS = [
-  { id: 1,  title: 'ML Productionization Slides',    type: 'pdf',   session: 'Productionizing ML Models',  size: '4.2 MB', date: '2026-04-30', url: '#' },
-  { id: 2,  title: 'LLM 101 Reference Notebook',     type: 'code',  session: 'Large Language Models 101',  size: '18 KB',  date: '2026-04-28', url: '#' },
-  { id: 3,  title: 'ReAct Pattern Deep Dive',        type: 'link',  session: 'ReAct Agent Pattern',        size: '—',      date: '2026-04-26', url: '#' },
-  { id: 4,  title: 'AI Safety Lecture Recording',    type: 'video', session: 'AI Safety and Ethics',       size: '1.1 GB', date: '2026-04-24', url: '#' },
-  { id: 5,  title: 'RAG Architecture Diagram',       type: 'pdf',   session: 'RAG Fundamentals',           size: '820 KB', date: '2026-04-22', url: '#' },
-  { id: 6,  title: 'Vector DB Cheatsheet',           type: 'pdf',   session: 'Vector Databases',           size: '1.5 MB', date: '2026-04-20', url: '#' },
-  { id: 7,  title: 'Fine-tuning Colab Notebook',     type: 'code',  session: 'Fine-Tuning LLMs',           size: '42 KB',  date: '2026-04-18', url: '#' },
-  { id: 8,  title: 'Eval Metrics Reference Sheet',   type: 'pdf',   session: 'Model Evaluation Metrics',   size: '680 KB', date: '2026-04-16', url: '#' },
-];
-
-const FILTERS = ['All', 'PDF', 'Code', 'Link', 'Video'];
+const FILTERS = ['All', 'Slides', 'Recording', 'Link', 'Document'];
 
 export default function Materials() {
   const [query,       setQuery]       = useState('');
   const [activeType,  setActiveType]  = useState('All');
   const [showModal,   setShowModal]   = useState(false);
-  const [newTitle,    setNewTitle]    = useState('');
-  const [newUrl,      setNewUrl]      = useState('');
+  const [sessions,    setSessions]    = useState([]);
+  const [materials,   setMaterials]   = useState([]);
+  
+  const [newMaterial, setNewMaterial] = useState({
+    title: '',
+    url: '',
+    type: 'link',
+    session_id: '',
+    description: ''
+  });
+  
+  const [loading,     setLoading]     = useState(true);
+  const [toast,       setToast]       = useState(null);
+  const [deleteId,    setDeleteId]    = useState(null);
+  const [isDeleting,  setIsDeleting]  = useState(false);
+  const [isAdding,    setIsAdding]    = useState(false);
 
-  const filtered = MATERIALS.filter((m) => {
-    const matchType  = activeType === 'All' || m.type === activeType.toLowerCase();
+  useEffect(() => {
+    async function init() {
+      try {
+        setLoading(true);
+        const [matList, sessList] = await Promise.all([
+          materialService.getAllWithSessions(),
+          sessionService.getAll()
+        ]);
+        setMaterials(matList);
+        setSessions(sessList);
+        if (sessList.length > 0) {
+          setNewMaterial(prev => ({ ...prev, session_id: sessList[0].id }));
+        }
+      } catch (err) {
+        console.error('[Materials] Init error:', err);
+        setToast({ message: 'Failed to load materials', type: 'error' });
+      } finally {
+        setLoading(false);
+      }
+    }
+    init();
+  }, []);
+
+  const filtered = materials.filter((m) => {
+    const matchType  = activeType === 'All' || m.type.toLowerCase() === activeType.toLowerCase();
     const matchQuery = m.title.toLowerCase().includes(query.toLowerCase()) ||
-                       m.session.toLowerCase().includes(query.toLowerCase());
+                       m.sessions?.topic.toLowerCase().includes(query.toLowerCase());
     return matchType && matchQuery;
   });
 
+  const handleAdd = async () => {
+    if (!newMaterial.title || !newMaterial.url || !newMaterial.session_id) return;
+    try {
+      setIsAdding(true);
+      const created = await materialService.create(newMaterial);
+      // Re-fetch to get the joined session data
+      const updatedList = await materialService.getAllWithSessions();
+      setMaterials(updatedList);
+      setShowModal(false);
+      setNewMaterial({
+        title: '',
+        url: '',
+        type: 'link',
+        session_id: sessions[0]?.id || '',
+        description: ''
+      });
+      setToast({ message: 'Material added successfully!', type: 'success' });
+    } catch (err) {
+      console.error('[Materials] Add error:', err);
+      setToast({ message: 'Failed to add material', type: 'error' });
+    } finally {
+      setIsAdding(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    try {
+      setIsDeleting(true);
+      await materialService.delete(deleteId);
+      setMaterials(materials.filter(m => m.id !== deleteId));
+      setDeleteId(null);
+      setToast({ message: 'Material removed from library', type: 'warning' });
+    } catch (err) {
+      console.error('[Materials] Delete error:', err);
+      setToast({ message: 'Failed to delete material', type: 'error' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-8 animate-fade-in">
+        <header className="flex justify-between items-end">
+          <div className="space-y-3">
+            <div className="h-4 bg-surface-raised rounded w-24" />
+            <div className="h-10 bg-surface-raised rounded-xl w-64" />
+          </div>
+          <div className="h-12 bg-surface-raised rounded-xl w-40" />
+        </header>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map(i => <div key={i} className="h-48 bg-surface-raised rounded-2xl animate-glass-shimmer" />)}
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8 pb-16">
+    <div className="space-y-8 pb-16 animate-slide-up">
       {/* Header */}
       <header className="flex items-start justify-between gap-4">
         <div>
@@ -87,7 +179,7 @@ export default function Materials() {
       {/* Materials Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
         {filtered.map((m) => {
-          const meta = TYPE_META[m.type];
+          const meta = TYPE_META[m.type.toLowerCase()] || TYPE_META.document;
           const Icon = meta.icon;
           return (
             <div
@@ -98,20 +190,31 @@ export default function Materials() {
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${meta.color} shrink-0`}>
                   <Icon size={18} />
                 </div>
-                <a
-                  href={m.url}
-                  className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center text-fg-tertiary hover:text-fg-primary hover:bg-surface-raised transition-colors ml-auto"
-                  title="Open"
-                >
-                  <ExternalLink size={14} />
-                </a>
+                <div className="flex items-center gap-2 ml-auto">
+                  <a
+                    href={m.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center text-fg-tertiary hover:text-fg-primary hover:bg-surface-raised transition-colors"
+                    title="Open"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                  <button
+                    onClick={() => setDeleteId(m.id)}
+                    className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center text-fg-tertiary hover:text-danger hover:bg-danger-bg hover:border-danger-border transition-all"
+                    title="Delete"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1">
                 <p className="text-sm font-bold text-fg-primary group-hover:text-accent-glow transition-colors leading-snug">
                   {m.title}
                 </p>
-                <p className="text-[11px] text-fg-tertiary mt-1 line-clamp-1">{m.session}</p>
+                <p className="text-[11px] text-fg-tertiary mt-1 line-clamp-1">{m.sessions?.topic || 'General Resource'}</p>
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border-subtle">
@@ -119,9 +222,9 @@ export default function Materials() {
                   {meta.label}
                 </span>
                 <div className="flex items-center gap-3 text-[11px] text-fg-tertiary font-mono">
-                  <span>{m.size}</span>
+                  <span>{m.description || '—'}</span>
                   <span>·</span>
-                  <span>{new Date(m.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
+                  <span>{new Date(m.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
                 </div>
               </div>
             </div>
@@ -138,48 +241,101 @@ export default function Materials() {
       )}
 
       {/* Add Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="card border border-border-default rounded-2xl p-8 w-full max-w-md space-y-6 shadow-raised">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-fg-primary">Add Material</h2>
-              <button onClick={() => setShowModal(false)} className="text-fg-tertiary hover:text-fg-primary transition-colors">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">Title</label>
-                <input
-                  className="input w-full"
-                  placeholder="e.g. Week 3 Slides"
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">URL / Link</label>
-                <input
-                  className="input w-full"
-                  placeholder="https://..."
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 pt-2">
-              <button onClick={() => setShowModal(false)} className="btn-secondary flex-1 rounded-xl text-sm font-bold py-3">
-                Cancel
-              </button>
-              <button
-                onClick={() => setShowModal(false)}
-                className="btn-primary flex-1 rounded-xl text-sm font-bold py-3 shadow-raised"
-              >
-                Add Material
-              </button>
-            </div>
+      <Modal 
+        isOpen={showModal} 
+        onClose={() => setShowModal(false)}
+        title="Add Material"
+        footer={(
+          <>
+            <button onClick={() => setShowModal(false)} className="px-6 py-2 text-sm font-bold text-fg-tertiary">
+              Cancel
+            </button>
+            <button
+              onClick={handleAdd}
+              disabled={isAdding}
+              className="btn-primary flex items-center gap-2 px-8 py-2 rounded-xl text-sm font-bold shadow-raised"
+            >
+              {isAdding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              {isAdding ? 'Adding...' : 'Add Material'}
+            </button>
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">Session</label>
+            <select 
+              className="input w-full h-12"
+              value={newMaterial.session_id}
+              onChange={(e) => setNewMaterial({ ...newMaterial, session_id: e.target.value })}
+            >
+              {sessions.map(s => (
+                <option key={s.id} value={s.id}>{s.topic} ({new Date(s.date).toLocaleDateString()})</option>
+              ))}
+            </select>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">Title</label>
+            <input
+              className="input w-full h-12"
+              placeholder="e.g. Week 3 Slides"
+              value={newMaterial.title}
+              onChange={(e) => setNewMaterial({ ...newMaterial, title: e.target.value })}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+             <div className="space-y-2">
+               <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">Type</label>
+               <select 
+                 className="input w-full h-12"
+                 value={newMaterial.type}
+                 onChange={(e) => setNewMaterial({ ...newMaterial, type: e.target.value })}
+               >
+                 <option value="slides">Slides</option>
+                 <option value="recording">Recording</option>
+                 <option value="link">Link</option>
+                 <option value="document">Document</option>
+                 <option value="code">Code</option>
+               </select>
+             </div>
+             <div className="space-y-2">
+               <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">Description / Size</label>
+               <input
+                 className="input w-full h-12"
+                 placeholder="e.g. 4.2 MB or Github repo"
+                 value={newMaterial.description}
+                 onChange={(e) => setNewMaterial({ ...newMaterial, description: e.target.value })}
+               />
+             </div>
+          </div>
+          <div className="space-y-2">
+            <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">URL / Link</label>
+            <input
+              className="input w-full h-12"
+              placeholder="https://..."
+              value={newMaterial.url}
+              onChange={(e) => setNewMaterial({ ...newMaterial, url: e.target.value })}
+            />
           </div>
         </div>
+      </Modal>
+
+      {/* Confirmation Dialog */}
+      <ConfirmDialog 
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Material?"
+        message="Are you sure you want to remove this material from the library? This action cannot be undone."
+      />
+
+      {/* Toast Notification */}
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
       )}
     </div>
   );

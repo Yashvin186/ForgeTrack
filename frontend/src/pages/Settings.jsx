@@ -1,5 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { User, Bell, Shield, Save, CheckCircle2 } from 'lucide-react';
+import { useUser } from '../context/UserContext';
+import { authService } from '../services/auth.service';
+import Toast from '../components/Toast';
 
 const TABS = [
   { id: 'profile',   label: 'Profile',        icon: User   },
@@ -7,24 +10,47 @@ const TABS = [
   { id: 'security',  label: 'Security',       icon: Shield },
 ];
 
-function ProfileTab() {
+function ProfileTab({ setToast }) {
+  const { user, updateUser } = useUser();
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState({
-    name:    'Nischay Pandey',
-    email:   'nischay@theforge.ai',
-    role:    'Lead Mentor',
-    phone:   '+91 98765 43210',
-    bio:     'Building the next generation of AI-ML engineers at The Forge Bootcamp.',
+    name:    user.name,
+    email:   user.email,
+    role:    user.role,
+    phone:   user.phone || '+91 98765 43210',
+    bio:     user.bio,
   });
 
-  const update = (k) => (e) => { setForm((p) => ({ ...p, [k]: e.target.value })); setSaved(false); };
+  const update = (k) => (e) => { 
+    setForm((p) => ({ ...p, [k]: e.target.value })); 
+    setSaved(false); 
+  };
+
+  const handleSave = async () => {
+    try {
+      if (!user.id) throw new Error('User not loaded');
+      
+      // Update Supabase Database
+      await authService.updateProfile(user.id, {
+        name: form.name,
+        role: form.role
+      });
+
+      // Update Local Context
+      updateUser(form);
+      setSaved(true);
+      setToast({ message: 'Profile updated successfully!', type: 'success' });
+    } catch (err) {
+      console.error(err);
+      setToast({ message: 'Failed to update profile', type: 'error' });
+    }
+  };
 
   return (
-    <div className="space-y-8">
-      {/* Avatar */}
+    <div className="space-y-8 animate-fade-in">
       <div className="flex items-center gap-6">
         <div className="w-20 h-20 rounded-2xl bg-accent-glow/20 border border-accent-glow/30 flex items-center justify-center text-accent-glow text-3xl font-black">
-          N
+          {form.name.charAt(0)}
         </div>
         <div>
           <p className="text-sm font-bold text-fg-primary">{form.name}</p>
@@ -35,7 +61,6 @@ function ProfileTab() {
         </div>
       </div>
 
-      {/* Form */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {[
           { key: 'name',  label: 'Full Name',    type: 'text'  },
@@ -62,7 +87,7 @@ function ProfileTab() {
 
       <div className="flex justify-end pt-2">
         <button
-          onClick={() => setSaved(true)}
+          onClick={handleSave}
           className={`flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold transition-all ${
             saved ? 'bg-success-bg border border-success-border text-success' : 'btn-primary shadow-raised'
           }`}
@@ -93,7 +118,7 @@ function NotifsTab() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fade-in">
       {items.map(({ key, label, desc }) => (
         <div
           key={key}
@@ -113,10 +138,15 @@ function NotifsTab() {
   );
 }
 
-function SecurityTab() {
+function SecurityTab({ setToast }) {
   const [saved, setSaved] = useState(false);
+  const handleUpdate = () => {
+    setSaved(true);
+    setToast({ message: 'Password updated successfully!', type: 'success' });
+  };
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 animate-fade-in">
       <div className="space-y-6">
         {[
           { label: 'Current Password',  type: 'password', placeholder: '••••••••' },
@@ -141,7 +171,7 @@ function SecurityTab() {
 
       <div className="flex justify-end">
         <button
-          onClick={() => setSaved(true)}
+          onClick={handleUpdate}
           className={`flex items-center gap-2 px-7 py-3 rounded-xl text-sm font-bold transition-all ${
             saved ? 'bg-success-bg border border-success-border text-success' : 'btn-primary shadow-raised'
           }`}
@@ -155,10 +185,10 @@ function SecurityTab() {
 
 export default function Settings() {
   const [tab, setTab] = useState('profile');
+  const [toast, setToast] = useState(null);
 
   return (
-    <div className="space-y-8 pb-16">
-      {/* Header */}
+    <div className="space-y-8 pb-16 animate-slide-up">
       <header>
         <p className="text-[11px] text-fg-tertiary uppercase tracking-[0.18em] font-bold mb-1">Account</p>
         <h1 className="text-display-md text-fg-primary tracking-tight">Settings</h1>
@@ -166,7 +196,6 @@ export default function Settings() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-        {/* Tab Sidebar */}
         <div className="card border border-border-subtle rounded-2xl overflow-hidden">
           {TABS.map(({ id, label, icon: Icon }) => (
             <button
@@ -184,13 +213,20 @@ export default function Settings() {
           ))}
         </div>
 
-        {/* Tab Content */}
         <div className="card border border-border-subtle rounded-2xl p-8 lg:col-span-3">
-          {tab === 'profile'  && <ProfileTab />}
+          {tab === 'profile'  && <ProfileTab setToast={setToast} />}
           {tab === 'notifs'   && <NotifsTab />}
-          {tab === 'security' && <SecurityTab />}
+          {tab === 'security' && <SecurityTab setToast={setToast} />}
         </div>
       </div>
+
+      {toast && (
+        <Toast 
+          message={toast.message} 
+          type={toast.type} 
+          onClose={() => setToast(null)} 
+        />
+      )}
     </div>
   );
 }

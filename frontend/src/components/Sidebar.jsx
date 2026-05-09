@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { useUser } from '../context/UserContext';
+import { authService } from '../services/auth.service';
 import {
   LayoutDashboard,
   CheckSquare,
@@ -12,7 +13,8 @@ import {
   Settings,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  FileText
 } from 'lucide-react';
 
 const MENTOR_NAV = [
@@ -23,9 +25,10 @@ const MENTOR_NAV = [
   {
     group: 'Activity',
     items: [
-      { to: '/attendance', label: 'Mark Attendance', icon: CheckSquare },
-      { to: '/history',    label: 'Student History', icon: History },
-      { to: '/materials',  label: 'Materials',       icon: BookOpen },
+      { to: '/attendance',  label: 'Mark Attendance', icon: CheckSquare },
+      { to: '/history',     label: 'Student History', icon: History },
+      { to: '/materials',   label: 'Materials',       icon: BookOpen },
+      { to: '/assignments', label: 'Assignments',     icon: FileText },
     ],
   },
   {
@@ -46,29 +49,12 @@ const STUDENT_NAV = [
 ];
 
 export default function Sidebar({ role }) {
-  const [userName, setUserName] = useState('');
+  const { user } = useUser();
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    const mockUser = JSON.parse(localStorage.getItem('forge_mock_user') || 'null');
-    if (mockUser) {
-      setUserName(mockUser.display_name);
-      return;
-    }
-    // Real Supabase user
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        supabase.from('users').select('display_name').eq('id', user.id).single()
-          .then(({ data }) => setUserName(data?.display_name || user.email));
-      }
-    });
-  }, []);
-
   const handleLogout = async () => {
-    localStorage.removeItem('forge_mock_role');
-    localStorage.removeItem('forge_mock_user');
-    await supabase.auth.signOut();
+    await authService.signOut();
     navigate('/login');
   };
 
@@ -81,7 +67,7 @@ export default function Sidebar({ role }) {
       }`}
     >
       {/* Logo & Collapse */}
-      <div className="p-5 flex items-center justify-between border-b border-border-subtle">
+      <div className="p-5 flex items-center justify-between border-b border-border-subtle shrink-0">
         {!collapsed && (
           <span className="font-display font-bold text-lg text-fg-primary tracking-tight">
             ForgeTrack
@@ -96,13 +82,13 @@ export default function Sidebar({ role }) {
       </div>
 
       {/* User Pill */}
-      {!collapsed && userName && (
-        <div className="mx-4 mt-5 p-3 rounded-xl bg-surface-raised border border-border-subtle flex items-center gap-3">
+      {!collapsed && user && (
+        <div className="mx-4 mt-5 p-3 rounded-xl bg-surface-raised border border-border-subtle flex items-center gap-3 shrink-0">
           <div className="w-8 h-8 rounded-full bg-accent-glow/20 flex items-center justify-center text-accent-glow font-bold text-sm shrink-0">
-            {userName.charAt(0).toUpperCase()}
+            {user.name.charAt(0).toUpperCase()}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-semibold text-fg-primary truncate">{userName}</p>
+            <p className="text-sm font-semibold text-fg-primary truncate">{user.name}</p>
             <p className="text-[10px] text-fg-tertiary uppercase tracking-widest font-bold">
               {role}
             </p>
@@ -125,16 +111,21 @@ export default function Sidebar({ role }) {
                   key={to}
                   to={to}
                   className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium ${
+                    `relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all text-sm font-medium overflow-hidden ${
                       isActive
-                        ? 'bg-accent-glow/10 text-accent-glow border border-accent-glow/20'
+                        ? 'bg-surface-raised text-fg-primary shadow-sm'
                         : 'text-fg-secondary hover:bg-surface-raised hover:text-fg-primary'
                     } ${collapsed ? 'justify-center' : ''}`
                   }
                   title={collapsed ? label : undefined}
                 >
-                  <Icon size={18} className="shrink-0" />
-                  {!collapsed && <span>{label}</span>}
+                  {({ isActive }) => (
+                    <>
+                      {isActive && <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent-glow shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
+                      <Icon size={20} strokeWidth={1.75} className="shrink-0" />
+                      {!collapsed && <span>{label}</span>}
+                    </>
+                  )}
                 </NavLink>
               ))}
             </div>
@@ -143,27 +134,32 @@ export default function Sidebar({ role }) {
       </div>
 
       {/* Footer */}
-      <div className="p-3 border-t border-border-subtle space-y-1">
+      <div className="p-3 border-t border-border-subtle space-y-1 shrink-0">
         <NavLink
           to="/settings"
           className={({ isActive }) =>
-            `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+            `relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors overflow-hidden ${
               collapsed ? 'justify-center' : ''
-            } ${isActive ? 'text-fg-primary bg-surface-raised' : 'text-fg-secondary hover:text-fg-primary'}`
+            } ${isActive ? 'text-fg-primary bg-surface-raised shadow-sm' : 'text-fg-secondary hover:text-fg-primary hover:bg-surface-raised'}`
           }
           title={collapsed ? 'Settings' : undefined}
         >
-          <Settings size={18} className="shrink-0" />
-          {!collapsed && <span>Settings</span>}
+          {({ isActive }) => (
+            <>
+              {isActive && <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-accent-glow shadow-[0_0_8px_rgba(99,102,241,0.5)]" />}
+              <Settings size={20} strokeWidth={1.75} className="shrink-0" />
+              {!collapsed && <span>Settings</span>}
+            </>
+          )}
         </NavLink>
         <button
           onClick={handleLogout}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-fg-secondary hover:text-danger hover:bg-danger-bg transition-all ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-fg-secondary hover:text-danger hover:bg-danger-bg hover:border-danger/10 border border-transparent transition-all ${
             collapsed ? 'justify-center' : ''
           }`}
           title={collapsed ? 'Logout' : undefined}
         >
-          <LogOut size={18} className="shrink-0" />
+          <LogOut size={20} strokeWidth={1.75} className="shrink-0" />
           {!collapsed && <span>Logout</span>}
         </button>
       </div>

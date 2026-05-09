@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { supabase } from './lib/supabase';
+import { UserProvider, useUser } from './context/UserContext';
+import { supabase } from './lib/supabaseClient';
 import Login from './pages/Login';
+import Signup from './pages/Signup';
 import Unauthorized from './pages/Unauthorized';
 import Layout from './components/Layout';
 import RoleGuard from './components/RoleGuard';
@@ -12,67 +14,31 @@ import MarkAttendance  from './pages/MarkAttendance';
 import StudentHistory  from './pages/StudentHistory';
 import Materials       from './pages/Materials';
 import Settings        from './pages/Settings';
+import CSVImport       from './pages/CSVImport';
+import UpcomingSessions from './pages/UpcomingSessions';
+import Assignments      from './pages/Assignments';
 
-// Remaining placeholders
-const Upload   = () => <div className="p-8 text-fg-secondary">Upload CSV — coming soon</div>;
-const Upcoming = () => <div className="p-8 text-fg-secondary">Upcoming Sessions — coming soon</div>;
-
-
-function App() {
+function AppContent() {
+  const { user, loading: userLoading } = useUser();
+  const [authLoading, setAuthLoading] = useState(true);
   const [session, setSession] = useState(null);
-  const [role, setRole] = useState(null);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const checkSessionAndRole = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      const mockRole = localStorage.getItem('forge_mock_role');
-      
-      if (mockRole) {
-        setSession({ user: JSON.parse(localStorage.getItem('forge_mock_user') || '{}'), isMock: true });
-        setRole(mockRole);
-        setLoading(false);
-        return;
-      }
-
-      if (currentSession) {
-        setSession(currentSession);
-        // Fetch role
-        const { data } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', currentSession.user.id)
-          .single();
-        setRole(data?.role || null);
-      }
-      setLoading(false);
+    const initAuth = async () => {
+      const { data: { session: initialSession } } = await supabase.auth.getSession();
+      setSession(initialSession);
+      setAuthLoading(false);
     };
+    initAuth();
 
-    checkSessionAndRole();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (event === 'SIGNED_IN' && newSession) {
-        // Only clear mock data on an actual Supabase sign-in event
-        localStorage.removeItem('forge_mock_role');
-        localStorage.removeItem('forge_mock_user');
-        setSession(newSession);
-
-        const { data } = await supabase
-          .from('users')
-          .select('role')
-          .eq('id', newSession.user.id)
-          .single();
-        setRole(data?.role || null);
-      } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setRole(null);
-      }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) {
+  if (authLoading || userLoading) {
     return (
       <div className="app-main flex items-center justify-center min-h-screen">
         <div className="text-fg-secondary text-display-sm animate-pulse font-display">Loading...</div>
@@ -80,10 +46,13 @@ function App() {
     );
   }
 
+  const role = user?.role || null;
+
   return (
     <Router>
       <Routes>
         <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
+        <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" replace />} />
         <Route path="/dev-tokens" element={<DevTokens />} />
         
         {/* Protected Layout */}
@@ -95,14 +64,15 @@ function App() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="attendance" element={<MarkAttendance />} />
             <Route path="history" element={<StudentHistory />} />
-            <Route path="upload" element={<Upload />} />
+            <Route path="upload" element={<CSVImport />} />
             <Route path="materials" element={<Materials />} />
+            <Route path="assignments" element={<Assignments />} />
           </Route>
           
           {/* Student Only Routes */}
           <Route element={<RoleGuard role={role} allowedRoles={['student']} />}>
             <Route path="me/attendance" element={<MyAttendance />} />
-            <Route path="me/upcoming" element={<Upcoming />} />
+            <Route path="me/upcoming" element={<UpcomingSessions />} />
             <Route path="me/materials" element={<Materials />} />
           </Route>
 
@@ -117,15 +87,18 @@ function App() {
   );
 }
 
+function App() {
+  return (
+    <UserProvider>
+      <AppContent />
+    </UserProvider>
+  );
+}
+
 // Logic to redirect user to their specific home page based on role
 function HomeRedirect({ role }) {
-  // role can be null while App.jsx is still fetching — show nothing and wait
   if (role === null) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-fg-tertiary animate-pulse text-sm tracking-widest uppercase">Loading...</div>
-      </div>
-    );
+    return <Navigate to="/login" replace />;
   }
   if (role === 'mentor') return <Navigate to="/dashboard" replace />;
   if (role === 'student') return <Navigate to="/me/attendance" replace />;
