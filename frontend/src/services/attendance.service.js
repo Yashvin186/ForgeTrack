@@ -1,77 +1,80 @@
 import { supabase } from '../lib/supabaseClient';
 
+// Simple in-memory cache
+const cache = {
+  detailedRecords: null,
+  recentActivity: new Map(),
+  lastFetch: 0,
+  TTL: 15000 // 15 second TTL
+};
+
 export const attendanceService = {
   async getBySession(sessionId) {
-    console.log(`[Attendance] Fetching by session: ${sessionId}`);
-    const { data, error, status } = await supabase
+    const { data, error } = await supabase
       .from('attendance')
       .select('*, students(name, usn, branch_code)')
       .eq('session_id', sessionId);
     
-    console.log(`[Attendance] Status: ${status}`, { data, error });
-    if (error) {
-      console.error('[Attendance] Error:', error.message);
-      return [];
-    }
+    if (error) return [];
     return data ?? [];
   },
 
   async getByStudent(studentId) {
-    console.log(`[Attendance] Fetching by student: ${studentId}`);
-    const { data, error, status } = await supabase
+    const { data, error } = await supabase
       .from('attendance')
       .select('session_id, present, sessions(*)')
       .eq('student_id', studentId);
     
-    console.log(`[Attendance] Status: ${status}`, { data, error });
-    if (error) {
-      console.error('[Attendance] Error:', error.message);
-      return [];
-    }
+    if (error) return [];
     return data ?? [];
   },
 
   async getAllRecords() {
-    console.log('[Attendance] Fetching all records (present field)');
-    const { data, error, status } = await supabase
+    const { data, error } = await supabase
       .from('attendance')
       .select('present');
     
-    console.log(`[Attendance] Status: ${status}`, { data, error });
-    if (error) {
-      console.error('[Attendance] Error:', error.message);
-      return [];
-    }
+    if (error) return [];
     return data ?? [];
   },
 
-  async getRecentActivity(limit = 5) {
-    console.log(`[Attendance] Fetching recent activity, limit: ${limit}`);
-    const { data, error, status } = await supabase
+  async getAllRecordsDetailed(force = false) {
+    if (!force && cache.detailedRecords && (Date.now() - cache.lastFetch < cache.TTL)) {
+      return cache.detailedRecords;
+    }
+
+    const { data, error } = await supabase
+      .from('attendance')
+      .select('id, present, student_id, session_id, students(name)');
+    
+    if (error) return cache.detailedRecords || [];
+
+    cache.detailedRecords = data ?? [];
+    cache.lastFetch = Date.now();
+    return cache.detailedRecords;
+  },
+
+  async getRecentActivity(limit = 5, force = false) {
+    if (!force && cache.recentActivity.has(limit)) {
+       return cache.recentActivity.get(limit);
+    }
+    const { data, error } = await supabase
       .from('attendance')
       .select('marked_at, marked_by, sessions(topic)')
       .order('marked_at', { ascending: false })
       .limit(limit);
     
-    console.log(`[Attendance] Status: ${status}`, { data, error });
-    if (error) {
-      console.error('[Attendance] Error:', error.message);
-      return [];
-    }
+    if (error) return [];
+    cache.recentActivity.set(limit, data ?? []);
     return data ?? [];
   },
 
   async upsertBatch(records) {
-    console.log(`[Attendance] Upserting batch of ${records.length} records`);
-    const { data, error, status } = await supabase
+    const { data, error } = await supabase
       .from('attendance')
       .upsert(records, { onConflict: 'student_id,session_id' });
     
-    console.log(`[Attendance] Status: ${status}`, { data, error });
-    if (error) {
-      console.error('[Attendance] Error:', error.message);
-      throw error;
-    }
+    if (error) throw error;
     return data ?? [];
   }
 };

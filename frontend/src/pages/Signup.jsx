@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { authService } from '../services/auth.service';
 import { studentService } from '../services/student.service';
-import { UserPlus, GraduationCap, ShieldCheck, ArrowRight, Loader2 } from 'lucide-react';
+import { UserPlus, GraduationCap, ShieldCheck, Mail, Lock, User, Hash, Sparkles, ArrowRight } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Signup() {
@@ -10,7 +10,7 @@ export default function Signup() {
     email: '',
     password: '',
     name: '',
-    usn: '' // For students to link to students table
+    usn: '' 
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -18,7 +18,7 @@ export default function Signup() {
 
   const handleSignup = async (e) => {
     e.preventDefault();
-    if (loading) return; // Prevent double submission
+    if (loading) return; 
     
     setLoading(true);
     setError(null);
@@ -26,43 +26,30 @@ export default function Signup() {
     try {
       let student_id = null;
       if (isStudent && formData.usn) {
-        console.log(`[Signup] Attempting to link student record for USN: ${formData.usn}`);
-        // Find student record to link
         const students = await studentService.getAll();
         const student = students.find(s => s.usn.toLowerCase() === formData.usn.toLowerCase());
-        
-        if (student) {
-          student_id = student.id;
-          console.log(`[Signup] Student record linked: ${student.name} (${student.id})`);
-        } else {
-          console.warn(`[Signup] No student record found for USN: ${formData.usn}. Proceeding with null student_id.`);
-        }
+        if (student) student_id = student.id;
       }
 
-      console.log(`[Signup] Creating auth account for: ${formData.email}`);
-      const { data, error: signUpError } = await authService.signUp(formData.email, formData.password, {
+      const { error: signUpError } = await authService.signUp(formData.email, formData.password, {
         role: isStudent ? 'student' : 'mentor',
         display_name: formData.name,
-        student_id
+        student_id,
+        usn: isStudent ? formData.usn : null
       });
 
       if (signUpError) {
-        console.error('[Signup] Auth service error:', signUpError.message);
         const friendlyMsg = signUpError.friendlyMessage || signUpError.message;
-        
         if (friendlyMsg.includes('already exists')) {
-          setError(<>This email is already registered. <Link to="/login" className="underline font-black">Sign in instead?</Link></>);
+          setError(<>Email already registered. <Link to="/login" className="underline font-black">Sign in instead?</Link></>);
         } else {
           setError(friendlyMsg);
         }
         return;
       }
 
-      console.log('[Signup] Signup successful, navigating to login...');
-      // Navigate to login
       navigate('/login');
     } catch (err) {
-      console.error('[Signup] Error:', err);
       setError(err.message || 'Signup failed. Please try again.');
     } finally {
       setLoading(false);
@@ -70,105 +57,132 @@ export default function Signup() {
   };
 
   return (
-    <div className="app-main flex items-center justify-center p-6 min-h-screen dot-grid">
-      <div className="card max-w-[480px] w-full p-10 flex flex-col items-center rounded-2xl relative z-10 border border-border-default shadow-raised">
-        <div className="w-14 h-14 bg-surface-raised border border-border-default rounded-2xl flex items-center justify-center mb-8 shadow-card">
-          <UserPlus className="text-accent-glow" size={28} />
-        </div>
-        
-        <div className="text-center mb-8">
-          <h1 className="text-display-sm text-fg-primary mb-2">Join ForgeTrack</h1>
-          <p className="text-label text-fg-tertiary uppercase tracking-[0.2em]">Create your account</p>
-        </div>
-
-        <div className="bg-surface-inset p-1.5 rounded-xl w-full flex mb-8 border border-border-subtle">
-          <button
-            onClick={() => setIsStudent(true)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
-              isStudent ? 'bg-surface-raised text-fg-primary shadow-raised border border-border-default' : 'text-fg-tertiary hover:text-fg-secondary'
-            }`}
-          >
-            <GraduationCap size={18} /> Student
-          </button>
-          <button
-            onClick={() => setIsStudent(false)}
-            className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-bold transition-all ${
-              !isStudent ? 'bg-surface-raised text-fg-primary shadow-raised border border-border-default' : 'text-fg-tertiary hover:text-fg-secondary'
-            }`}
-          >
-            <ShieldCheck size={18} /> Mentor
-          </button>
+    <div className="app-main flex items-center justify-center p-6 min-h-screen relative overflow-hidden bg-void">
+      <div className="absolute inset-0 dot-grid opacity-40" />
+      <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-accent-glow/10 blur-[120px] rounded-full" />
+      
+      <div className="w-full max-w-[460px] space-y-8 relative z-10 animate-fade-in">
+        <div className="text-center space-y-3">
+           <div className="w-16 h-16 bg-surface-raised border border-border-default rounded-2xl flex items-center justify-center mx-auto shadow-raised group hover:border-accent-glow/50 transition-all duration-500">
+              <UserPlus className="text-accent-glow group-hover:scale-110 transition-transform" size={32} />
+           </div>
+           <div>
+              <h1 className="text-display-sm text-fg-primary tracking-tight font-black">Initialize Identity</h1>
+              <p className="text-[10px] text-fg-tertiary uppercase tracking-[0.25em] font-black">ForgeTrack Enrollment Protocol</p>
+           </div>
         </div>
 
-        <form className="w-full space-y-5" onSubmit={handleSignup}>
-          <div className="space-y-2">
-            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">Full Name</label>
-            <input
-              className="input w-full"
-              placeholder="e.g. John Doe"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              required
-            />
-          </div>
+        <div className="card p-10 border border-border-default rounded-[2.5rem] bg-canvas/40 backdrop-blur-3xl shadow-raised relative overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+           
+           <div className="bg-surface-inset p-1 rounded-2xl flex mb-10 border border-border-subtle">
+              <button
+                onClick={() => setIsStudent(true)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                  isStudent ? 'bg-surface-raised text-fg-primary shadow-sm border border-border-default' : 'text-fg-tertiary hover:text-fg-secondary'
+                }`}
+              >
+                <GraduationCap size={16} /> Student
+              </button>
+              <button
+                onClick={() => setIsStudent(false)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                  !isStudent ? 'bg-surface-raised text-fg-primary shadow-sm border border-border-default' : 'text-fg-tertiary hover:text-fg-secondary'
+                }`}
+              >
+                <ShieldCheck size={16} /> Mentor
+              </button>
+           </div>
 
-          <div className="space-y-2">
-            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">Email Address</label>
-            <input
-              type="email"
-              className="input w-full"
-              placeholder="john@example.com"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
-          </div>
+           <form className="space-y-5" onSubmit={handleSignup}>
+              <div className="space-y-2">
+                 <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black ml-1">Full Name</label>
+                 <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary group-focus-within:text-accent-glow transition-colors" size={18} />
+                    <input
+                      placeholder="e.g. John Doe"
+                      className="input w-full pl-12 h-12 bg-surface-inset/50"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                    />
+                 </div>
+              </div>
 
-          {isStudent && (
-            <div className="space-y-2">
-              <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">USN (To link records)</label>
-              <input
-                className="input w-full"
-                placeholder="4SH22CS000"
-                value={formData.usn}
-                onChange={(e) => setFormData({ ...formData, usn: e.target.value })}
-                required
-              />
-            </div>
-          )}
+              <div className="space-y-2">
+                 <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black ml-1">Work Email</label>
+                 <div className="relative group">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary group-focus-within:text-accent-glow transition-colors" size={18} />
+                    <input
+                      type="email"
+                      placeholder="name@company.com"
+                      className="input w-full pl-12 h-12 bg-surface-inset/50"
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      required
+                    />
+                 </div>
+              </div>
 
-          <div className="space-y-2">
-            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">Password</label>
-            <input
-              type="password"
-              className="input w-full"
-              placeholder="••••••••"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              required
-            />
-          </div>
+              {isStudent && (
+                <div className="space-y-2 animate-fade-in">
+                   <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black ml-1">Student Identifier (USN)</label>
+                   <div className="relative group">
+                      <Hash className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary group-focus-within:text-accent-glow transition-colors" size={18} />
+                      <input
+                        placeholder="e.g. 4SH22CS001"
+                        className="input w-full pl-12 h-12 bg-surface-inset/50"
+                        value={formData.usn}
+                        onChange={(e) => setFormData({ ...formData, usn: e.target.value })}
+                        required
+                      />
+                   </div>
+                </div>
+              )}
 
-          {error && (
-            <div className="p-4 bg-danger-bg border border-danger-border rounded-xl text-danger text-xs font-bold flex items-center gap-3">
-               <div className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
-               {error}
-            </div>
-          )}
+              <div className="space-y-2">
+                 <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black ml-1">Secure Passphrase</label>
+                 <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary group-focus-within:text-accent-glow transition-colors" size={18} />
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      className="input w-full pl-12 h-12 bg-surface-inset/50"
+                      value={formData.password}
+                      onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                      required
+                    />
+                 </div>
+              </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full flex items-center justify-center gap-2 py-4 text-sm font-black shadow-raised"
-          >
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <UserPlus size={18} />}
-            {loading ? 'CREATING ACCOUNT...' : 'SIGN UP'}
-          </button>
-        </form>
+              {error && (
+                <div className="p-4 bg-danger-bg border border-danger-border rounded-2xl text-[11px] text-danger font-bold flex items-center gap-3">
+                   <div className="w-1.5 h-1.5 rounded-full bg-danger shrink-0" />
+                   {error}
+                </div>
+              )}
 
-        <p className="mt-8 text-sm text-fg-secondary font-medium">
-          Already have an account? <Link to="/login" className="text-accent-glow hover:underline">Sign In</Link>
-        </p>
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full py-4 text-sm font-black uppercase tracking-[0.15em] flex items-center justify-center gap-3 shadow-lg shadow-accent-glow/20 mt-4 disabled:opacity-50"
+              >
+                {loading ? <><div className="w-4 h-4 border-2 border-void/30 border-t-void rounded-full animate-spin" /> Provisioning</> : <><Sparkles size={18} /> Create Account</>}
+              </button>
+           </form>
+        </div>
+
+        <div className="text-center">
+           <p className="text-fg-tertiary text-xs font-bold uppercase tracking-widest">
+              Already enrolled?
+           </p>
+           <Link 
+             to="/login" 
+             className="inline-flex items-center gap-2 text-accent-glow font-black text-sm mt-3 hover:opacity-80 transition-opacity"
+           >
+             Return to Gate <ArrowRight size={16} />
+           </Link>
+        </div>
       </div>
     </div>
   );

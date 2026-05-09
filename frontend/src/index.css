@@ -1,128 +1,113 @@
 @import "tailwindcss";
 
 @theme {
-  /* Colors */
-  --color-void: #07070B;
-  --color-canvas: #0B0B11;
-  --color-surface: #111118;
-  --color-surface-raised: #16161F;
-  --color-surface-inset: #0E0E14;
+  /* Colors - Deep Slate & Indigo Theme */
+  --color-void: #050508;
+  --color-canvas: #09090C;
+  --color-surface: #0E0E12;
+  --color-surface-raised: #14141B;
+  --color-surface-inset: #07070A;
 
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-default: rgba(255, 255, 255, 0.10);
-  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-border-subtle: rgba(255, 255, 255, 0.04);
+  --color-border-default: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.12);
 
-  --color-fg-primary: #F5F5F7;
-  --color-fg-secondary: #8A8A94;
-  --color-fg-tertiary: #52525B;
+  --color-fg-primary: #FFFFFF;
+  --color-fg-secondary: #94949E;
+  --color-fg-tertiary: #52525E;
 
   --color-accent-glow: #6366F1;
+  --color-accent-soft: rgba(99, 102, 241, 0.15);
 
   --color-success: #10B981;
-  --color-success-bg: rgba(16, 185, 129, 0.12);
-  --color-success-border: rgba(16, 185, 129, 0.25);
+  --color-success-bg: rgba(16, 185, 129, 0.08);
+  --color-success-border: rgba(16, 185, 129, 0.2);
 
   --color-danger: #F43F5E;
-  --color-danger-bg: rgba(244, 63, 94, 0.12);
-  --color-danger-border: rgba(244, 63, 94, 0.25);
+  --color-danger-bg: rgba(244, 63, 94, 0.08);
+  --color-danger-border: rgba(244, 63, 94, 0.2);
 
   --color-warning: #F59E0B;
-  --color-warning-bg: rgba(245, 158, 11, 0.12);
-  --color-warning-border: rgba(245, 158, 11, 0.25);
+  --color-warning-bg: rgba(245, 158, 11, 0.08);
+  --color-warning-border: rgba(245, 158, 11, 0.2);
+
+  --color-info: #3B82F6;
+  --color-info-bg: rgba(59, 130, 246, 0.08);
+  --color-info-border: rgba(59, 130, 246, 0.2);
 
   /* Fonts */
-  --font-display: 'Satoshi', 'Inter', system-ui, sans-serif;
+  --font-display: 'Plus Jakarta Sans', 'Inter', system-ui, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;
 
-  /* Shadows & Effects */
-  --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.06);
-  --shadow-raised: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.10);
-  --shadow-focus: 0 0 0 3px rgba(99, 102, 241, 0.25);
+  /* Shadows */
+  --shadow-card: 0 0 0 1px rgba(255, 255, 255, 0.06), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-raised: 0 0 0 1px rgba(255, 255, 255, 0.1), 0 20px 40px -12px rgba(0, 0, 0, 0.6);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.15);
 
-  --image-cosmic-glow: radial-gradient(ellipse 600px 300px at 50% -100px, rgba(99, 102, 241, 0.18), rgba(99, 102, 241, 0) 70%);
-  --image-card-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, rgba(255, 255, 255, 0) 50%);
-  --image-dot-grid: radial-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  /* Gradients */
+  --image-cosmic-glow: radial-gradient(circle at 50% -20%, rgba(99, 102, 241, 0.15) 0%, rgba(9, 9, 12, 0) 60%);
+  --image-dot-grid: radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
 
 @layer base {
-  body {
-    @apply bg-void text-fg-primary font-body antialiased selection:bg-accent-glow/30;
+  * {
+    @apply border-border-default selection:bg-accent-glow/20 selection:text-fg-primary;
   }
 
-  /* Custom typography classes from Design System §3 */
-  .text-display-hero {
-    @apply font-display text-[4.5rem] font-bold leading-none tracking-[-0.03em] tabular-nums;
+  body {
+    @apply bg-void text-fg-primary font-body antialiased;
+    scrollbar-gutter: stable;
   }
-  .text-display-lg {
-    @apply font-display text-[3.5rem] font-bold leading-[1.05] tracking-[-0.025em] tabular-nums;
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-1.5 h-1.5;
   }
-  .text-display-md {
-    @apply font-display text-[2.5rem] font-bold leading-[1.1] tracking-[-0.02em] tabular-nums;
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
   }
-  .text-display-sm {
-    @apply font-display text-[2rem] font-semibold leading-[1.15] tracking-[-0.015em] tabular-nums;
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-strong rounded-full hover:bg-fg-tertiary transition-colors;
   }
-  .text-label {
-    @apply text-[0.6875rem] font-medium leading-[1.3] tracking-[0.08em] uppercase;
-  }
-  .text-micro {
-    @apply text-[0.625rem] font-semibold leading-[1.2] tracking-[0.06em] uppercase;
-  }
+
+  /* Typography */
+  .text-display-hero { @apply font-display text-7xl font-black tracking-tighter leading-[0.9] tabular-nums; }
+  .text-display-lg { @apply font-display text-5xl font-extrabold tracking-tight leading-[1.1] tabular-nums; }
+  .text-display-md { @apply font-display text-3xl font-bold tracking-tight leading-tight tabular-nums; }
+  .text-display-sm { @apply font-display text-xl font-bold tracking-tight leading-snug tabular-nums; }
 }
 
 @layer components {
   .app-main {
-    @apply relative min-h-screen overflow-x-hidden bg-void;
+    @apply relative min-h-screen bg-void;
     background-image: var(--image-cosmic-glow);
-  }
-
-  .card {
-    @apply bg-surface rounded-xl relative;
-    background-image: var(--image-card-gradient);
-    box-shadow: var(--shadow-card);
-  }
-
-  .card-hero {
-    @apply rounded-2xl p-10;
-  }
-
-  .btn-primary {
-    @apply bg-fg-primary text-void rounded-md px-5 py-3 font-medium text-sm tracking-tight transition-all hover:bg-[#E5E5E7] active:scale-[0.98];
-  }
-
-  .btn-secondary {
-    @apply bg-surface-raised text-fg-primary border border-border-default rounded-md px-5 py-3 transition-all hover:bg-surface active:scale-[0.98];
-  }
-
-  .input {
-    @apply bg-surface-inset border border-border-default rounded-md px-4 py-3 text-fg-primary text-sm h-11 transition-all focus:border-accent-glow focus:ring-0 focus:outline-none focus:shadow-focus placeholder:text-fg-tertiary;
-  }
-
-  .pill {
-    @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-semibold text-xs tabular-nums border;
-  }
-
-  .pill-success {
-    @apply bg-success-bg text-success border-success-border;
-  }
-
-  .pill-danger {
-    @apply bg-danger-bg text-danger border-danger-border;
   }
 
   .dot-grid {
     background-image: var(--image-dot-grid);
-    background-size: 24px 24px;
+    background-size: 32px 32px;
   }
 
-  /* Animations */
-  .animate-fade-in {
-    animation: fadeIn 0.5s ease-out forwards;
+  .card {
+    @apply bg-surface rounded-2xl transition-all duration-300;
+    box-shadow: var(--shadow-card);
   }
 
-  .animate-slide-up {
-    animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  .card-hover {
+    @apply hover:bg-surface-raised hover:border-border-strong hover:shadow-raised cursor-pointer active:scale-[0.99];
+  }
+
+  .btn-primary {
+    @apply bg-fg-primary text-void rounded-xl px-6 py-2.5 font-bold text-sm tracking-tight transition-all hover:bg-fg-primary/90 active:scale-95 disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply bg-surface-raised text-fg-primary border border-border-default rounded-xl px-6 py-2.5 font-bold text-sm transition-all hover:bg-surface-raised/80 active:scale-95;
+  }
+
+  .input {
+    @apply bg-surface-inset border border-border-default rounded-xl px-4 py-2.5 text-fg-primary text-sm transition-all focus:border-accent-glow focus:ring-4 focus:ring-accent-glow/10 focus:outline-none placeholder:text-fg-tertiary;
   }
 
   .animate-glass-shimmer {
@@ -133,21 +118,20 @@
       rgba(255, 255, 255, 0) 100%
     );
     background-size: 200% 100%;
-    animation: shimmer 2s infinite;
-  }
-
-  @keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-  }
-
-  @keyframes slideUp {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-
-  @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    animation: shimmer 2s linear infinite;
   }
 }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-fade-in { animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+.animate-spin-slow { animation: spin 3s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

@@ -1,4 +1,4 @@
-import { X, AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
 import Modal from './Modal';
 
 export default function ConfirmDialog({ 

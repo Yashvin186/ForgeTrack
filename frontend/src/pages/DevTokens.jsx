@@ -1,5 +1,5 @@
-import React from 'react';
-import { CheckCircle2, AlertCircle, Info, LayoutDashboard } from 'lucide-react';
+
+import { CheckCircle2, AlertCircle, LayoutDashboard } from 'lucide-react';
 
 const DevTokens = () => {
   return (

@@ -1,13 +1,13 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
 import { UserProvider, useUser } from './context/UserContext';
-import { supabase } from './lib/supabaseClient';
 import Login from './pages/Login';
 import Signup from './pages/Signup';
 import Unauthorized from './pages/Unauthorized';
 import Layout from './components/Layout';
 import RoleGuard from './components/RoleGuard';
+import ErrorBoundary from './components/ErrorBoundary';
 import DevTokens from './pages/DevTokens';
+import DevAuth from './pages/DevAuth';
 import Dashboard from './pages/Dashboard';
 import MyAttendance    from './pages/MyAttendance';
 import MarkAttendance  from './pages/MarkAttendance';
@@ -19,70 +19,66 @@ import UpcomingSessions from './pages/UpcomingSessions';
 import Assignments      from './pages/Assignments';
 
 function AppContent() {
-  const { user, loading: userLoading } = useUser();
-  const [authLoading, setAuthLoading] = useState(true);
-  const [session, setSession] = useState(null);
+  const { user, role, initializing } = useUser();
+  const isAuthenticated = !!user;
 
-  useEffect(() => {
-    const initAuth = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
-      setAuthLoading(false);
-    };
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      setSession(newSession);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (authLoading || userLoading) {
+  if (initializing) {
     return (
-      <div className="app-main flex items-center justify-center min-h-screen">
-        <div className="text-fg-secondary text-display-sm animate-pulse font-display">Loading...</div>
+      <div className="flex h-screen w-full bg-void items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-accent-glow/20 border-t-accent-glow rounded-full animate-spin" />
+          <p className="text-[10px] font-black text-fg-tertiary uppercase tracking-widest animate-pulse">Initializing Protocol...</p>
+        </div>
       </div>
     );
   }
 
-  const role = user?.role || null;
-
   return (
     <Router>
-      <Routes>
-        <Route path="/login" element={!session ? <Login /> : <Navigate to="/" replace />} />
-        <Route path="/signup" element={!session ? <Signup /> : <Navigate to="/" replace />} />
-        <Route path="/dev-tokens" element={<DevTokens />} />
-        
-        {/* Protected Layout */}
-        <Route path="/" element={session ? <Layout role={role} /> : <Navigate to="/login" replace />}>
-          <Route index element={<HomeRedirect role={role} />} />
+      <ErrorBoundary>
+        <Routes>
+          {/* Public Routes */}
+          <Route 
+            path="/login" 
+            element={!isAuthenticated ? <Login /> : <Navigate to="/" replace />} 
+          />
+          <Route 
+            path="/signup" 
+            element={!isAuthenticated ? <Signup /> : <Navigate to="/" replace />} 
+          />
           
-          {/* Mentor Only Routes */}
-          <Route element={<RoleGuard role={role} allowedRoles={['mentor']} />}>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="attendance" element={<MarkAttendance />} />
-            <Route path="history" element={<StudentHistory />} />
-            <Route path="upload" element={<CSVImport />} />
-            <Route path="materials" element={<Materials />} />
-            <Route path="assignments" element={<Assignments />} />
-          </Route>
+          <Route path="/dev-tokens" element={<DevTokens />} />
+          <Route path="/dev-auth" element={<DevAuth />} />
           
-          {/* Student Only Routes */}
-          <Route element={<RoleGuard role={role} allowedRoles={['student']} />}>
-            <Route path="me/attendance" element={<MyAttendance />} />
-            <Route path="me/upcoming" element={<UpcomingSessions />} />
-            <Route path="me/materials" element={<Materials />} />
+          {/* Protected Routes */}
+          <Route 
+            path="/" 
+            element={isAuthenticated ? <Layout role={role} /> : <Navigate to="/login" replace />}
+          >
+            <Route index element={<HomeRedirect role={role} />} />
+            
+            <Route element={<RoleGuard allowedRoles={['mentor']} />}>
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="attendance" element={<MarkAttendance />} />
+              <Route path="history" element={<StudentHistory />} />
+              <Route path="upload" element={<CSVImport />} />
+              <Route path="materials" element={<Materials />} />
+              <Route path="assignments" element={<Assignments />} />
+            </Route>
+            
+            <Route element={<RoleGuard allowedRoles={['student']} />}>
+              <Route path="me/attendance" element={<MyAttendance />} />
+              <Route path="me/upcoming" element={<UpcomingSessions />} />
+              <Route path="me/materials" element={<Materials />} />
+            </Route>
+
+            <Route path="settings" element={<Settings />} />
           </Route>
 
-          {/* Shared Protected Routes */}
-          <Route path="settings" element={<Settings />} />
-        </Route>
-
-        <Route path="/403" element={<Unauthorized />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+          <Route path="/403" element={<Unauthorized />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </ErrorBoundary>
     </Router>
   );
 }
@@ -95,14 +91,11 @@ function App() {
   );
 }
 
-// Logic to redirect user to their specific home page based on role
 function HomeRedirect({ role }) {
-  if (role === null) {
-    return <Navigate to="/login" replace />;
-  }
   if (role === 'mentor') return <Navigate to="/dashboard" replace />;
   if (role === 'student') return <Navigate to="/me/attendance" replace />;
-  return <Navigate to="/login" replace />;
+
+  return <Navigate to="/403" replace />;
 }
 
 export default App;

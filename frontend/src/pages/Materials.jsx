@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { FileText, Link as LinkIcon, Video, Code, Plus, Search, ExternalLink, X, Trash2, Loader2, AlertCircle } from 'lucide-react';
+import { FileText, Link as LinkIcon, Video, Code, Plus, Search, ExternalLink, Trash2, Loader2 } from 'lucide-react';
+import { useUser } from '../context/UserContext';
 import Modal from '../components/Modal';
 import Toast from '../components/Toast';
 import ConfirmDialog from '../components/ConfirmDialog';
@@ -19,12 +20,14 @@ const TYPE_META = {
 const FILTERS = ['All', 'Slides', 'Recording', 'Link', 'Document'];
 
 export default function Materials() {
+  const { role } = useUser();
   const [query,       setQuery]       = useState('');
   const [activeType,  setActiveType]  = useState('All');
   const [showModal,   setShowModal]   = useState(false);
   const [sessions,    setSessions]    = useState([]);
   const [materials,   setMaterials]   = useState([]);
   
+  // ... rest of state
   const [newMaterial, setNewMaterial] = useState({
     title: '',
     url: '',
@@ -36,8 +39,9 @@ export default function Materials() {
   const [loading,     setLoading]     = useState(true);
   const [toast,       setToast]       = useState(null);
   const [deleteId,    setDeleteId]    = useState(null);
-  const [isDeleting,  setIsDeleting]  = useState(false);
   const [isAdding,    setIsAdding]    = useState(false);
+
+  const isMentor = role === 'mentor';
 
   useEffect(() => {
     async function init() {
@@ -73,7 +77,7 @@ export default function Materials() {
     if (!newMaterial.title || !newMaterial.url || !newMaterial.session_id) return;
     try {
       setIsAdding(true);
-      const created = await materialService.create(newMaterial);
+      await materialService.create(newMaterial);
       // Re-fetch to get the joined session data
       const updatedList = await materialService.getAllWithSessions();
       setMaterials(updatedList);
@@ -97,7 +101,6 @@ export default function Materials() {
   const handleDelete = async () => {
     if (!deleteId) return;
     try {
-      setIsDeleting(true);
       await materialService.delete(deleteId);
       setMaterials(materials.filter(m => m.id !== deleteId));
       setDeleteId(null);
@@ -105,8 +108,6 @@ export default function Materials() {
     } catch (err) {
       console.error('[Materials] Delete error:', err);
       setToast({ message: 'Failed to delete material', type: 'error' });
-    } finally {
-      setIsDeleting(false);
     }
   };
 
@@ -136,12 +137,14 @@ export default function Materials() {
           <h1 className="text-display-md text-fg-primary tracking-tight">Materials</h1>
           <p className="text-fg-secondary mt-1">All bootcamp resources, slides, and recordings in one place.</p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="btn-primary flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold shadow-raised shrink-0"
-        >
-          <Plus size={16} /> Add Material
-        </button>
+        {isMentor && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="btn-primary flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold shadow-raised shrink-0"
+          >
+            <Plus size={16} /> Add Material
+          </button>
+        )}
       </header>
 
       {/* Filter Bar */}
@@ -177,14 +180,31 @@ export default function Materials() {
       </div>
 
       {/* Materials Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-        {filtered.map((m) => {
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        {filtered.length === 0 ? (
+          <div className="col-span-full card p-20 flex flex-col items-center justify-center text-center space-y-6 border-dashed border-border-default bg-surface-raised/10 rounded-[3rem]">
+             <div className="w-20 h-20 rounded-3xl bg-surface-raised border border-border-subtle flex items-center justify-center text-fg-tertiary">
+                <FileText size={32} />
+             </div>
+             <div className="max-w-sm mx-auto">
+                <h3 className="text-xl font-bold text-fg-primary">No Materials Found</h3>
+                <p className="text-sm text-fg-secondary mt-2">
+                  {query ? "No results match your search criteria. Try a different query." : "There are no learning materials uploaded yet for this bootcamp."}
+                </p>
+                {isMentor && !query && (
+                  <button onClick={() => setShowModal(true)} className="btn-primary mt-8 px-10 py-3.5 rounded-xl text-sm font-black shadow-raised">
+                    Upload First Material
+                  </button>
+                )}
+             </div>
+          </div>
+        ) : filtered.map((m) => {
           const meta = TYPE_META[m.type.toLowerCase()] || TYPE_META.document;
           const Icon = meta.icon;
           return (
             <div
               key={m.id}
-              className="card border border-border-subtle rounded-2xl p-6 flex flex-col gap-4 hover:bg-surface-raised transition-colors group"
+              className="card border border-border-subtle rounded-2xl p-5 flex flex-col gap-4 hover:bg-surface-raised/50 transition-all hover:-translate-y-1 duration-300 group shadow-lg"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${meta.color} shrink-0`}>
@@ -200,13 +220,15 @@ export default function Materials() {
                   >
                     <ExternalLink size={14} />
                   </a>
-                  <button
-                    onClick={() => setDeleteId(m.id)}
-                    className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center text-fg-tertiary hover:text-danger hover:bg-danger-bg hover:border-danger-border transition-all"
-                    title="Delete"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {isMentor && (
+                    <button
+                      onClick={() => setDeleteId(m.id)}
+                      className="w-8 h-8 rounded-lg border border-border-default flex items-center justify-center text-fg-tertiary hover:text-danger hover:bg-danger-bg hover:border-danger-border transition-all"
+                      title="Delete"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -218,12 +240,10 @@ export default function Materials() {
               </div>
 
               <div className="flex items-center justify-between pt-3 border-t border-border-subtle">
-                <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${meta.color}`}>
-                  {meta.label}
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider border ${meta.color}`}>
+                   {meta.label}
                 </span>
-                <div className="flex items-center gap-3 text-[11px] text-fg-tertiary font-mono">
-                  <span>{m.description || '—'}</span>
-                  <span>·</span>
+                <div className="flex items-center gap-2 text-[10px] text-fg-tertiary font-bold uppercase tracking-wider">
                   <span>{new Date(m.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}</span>
                 </div>
               </div>
@@ -231,14 +251,6 @@ export default function Materials() {
           );
         })}
       </div>
-
-      {filtered.length === 0 && (
-        <div className="text-center py-20 text-fg-tertiary">
-          <FileText size={40} className="mx-auto mb-4 opacity-30" />
-          <p className="font-bold">No materials found</p>
-          <p className="text-sm mt-1">Try a different search or filter.</p>
-        </div>
-      )}
 
       {/* Add Modal */}
       <Modal 

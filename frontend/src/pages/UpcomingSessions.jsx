@@ -13,9 +13,9 @@ export default function UpcomingSessions() {
         const all = await sessionService.getAll();
         // Filter for future sessions
         const today = new Date();
-        today.setHours(0,0,0,0);
+        today.setHours(0, 0, 0, 0);
         const upcoming = all.filter(s => new Date(s.date) >= today)
-                          .sort((a, b) => new Date(a.date) - new Date(b.date));
+          .sort((a, b) => new Date(a.date) - new Date(b.date));
         setSessions(upcoming);
       } catch (err) {
         console.error('[Upcoming] Error:', err);
@@ -46,81 +46,84 @@ export default function UpcomingSessions() {
         <p className="text-fg-secondary mt-1">Plan your week. Don't miss these critical bootcamp sessions.</p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {sessions.map((s, i) => {
-          const date = new Date(s.date);
-          const isToday = date.toDateString() === new Date().toDateString();
+      {sessions.length === 0 ? (
+        <div className="card p-20 flex flex-col items-center justify-center text-center space-y-6 border-dashed border-border-default bg-surface-raised/10 rounded-[3rem]">
+          <div className="w-20 h-20 rounded-3xl bg-surface-raised border border-border-subtle flex items-center justify-center text-fg-tertiary">
+            <Calendar size={32} />
+          </div>
+          <div className="max-w-sm">
+            <h3 className="text-xl font-bold text-fg-primary">No Upcoming Sessions</h3>
+            <p className="text-sm text-fg-secondary mt-2">There are no sessions scheduled for the upcoming week. Check back later or contact your mentor.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sessions.map((s) => {
+            const date = new Date(s.date);
+            const isToday = date.toDateString() === new Date().toDateString();
 
-          return (
-            <div 
-              key={s.id} 
-              className={`card p-8 rounded-[2rem] border transition-all hover:scale-[1.02] duration-300 relative overflow-hidden group ${
-                isToday ? 'border-accent-glow bg-accent-glow/5 shadow-[0_20px_50px_rgba(var(--accent-rgb),0.1)]' : 'border-border-subtle hover:border-border-default'
-              }`}
-            >
-              {isToday && (
-                <div className="absolute top-4 right-6 flex items-center gap-1.5 px-3 py-1 bg-accent-glow rounded-full text-[10px] font-black uppercase text-black tracking-widest animate-pulse">
-                  <Sparkles size={10} /> Today
-                </div>
-              )}
+            return (
+              <div
+                key={s.id}
+                className={`card p-8 rounded-[2rem] border transition-all hover:scale-[1.02] duration-300 relative overflow-hidden group ${isToday ? 'border-accent-glow bg-accent-glow/5 shadow-[0_20px_50px_rgba(var(--accent-rgb),0.1)]' : 'border-border-subtle hover:border-border-default'
+                  }`}
+              >
+                {isToday && (
+                  <div className="absolute top-4 right-6 flex items-center gap-1.5 px-3 py-1 bg-accent-glow rounded-full text-[10px] font-black uppercase text-black tracking-widest animate-pulse">
+                    <Sparkles size={10} /> Today
+                  </div>
+                )}
 
-              <div className="space-y-6">
-                {/* Date Header */}
-                <div className="flex items-center gap-4">
-                   <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border ${isToday ? 'bg-accent-glow border-accent-glow text-black' : 'bg-surface-inset border-border-subtle text-fg-primary'}`}>
+                <div className="space-y-6">
+                  {/* Date Header */}
+                  <div className="flex items-center gap-4">
+                    <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center border ${isToday ? 'bg-accent-glow border-accent-glow text-black' : 'bg-surface-inset border-border-subtle text-fg-primary'}`}>
                       <span className="text-[10px] uppercase font-black leading-none mb-1">{date.toLocaleDateString('en-US', { month: 'short' })}</span>
                       <span className="text-xl font-black leading-none">{date.getDate()}</span>
-                   </div>
-                   <div>
+                    </div>
+                    <div>
                       <p className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black">{date.toLocaleDateString('en-US', { weekday: 'long' })}</p>
                       <p className="text-sm font-bold text-fg-secondary">{s.duration_hours} Hour Session</p>
-                   </div>
-                </div>
+                    </div>
+                  </div>
 
-                {/* Topic */}
-                <div className="space-y-2">
-                   <h3 className="text-xl font-bold text-fg-primary leading-tight group-hover:text-accent-glow transition-colors">{s.topic}</h3>
-                   <div className="flex items-center gap-4 pt-2">
+                  {/* Topic */}
+                  <div className="space-y-2">
+                    <h3 className="text-xl font-bold text-fg-primary leading-tight group-hover:text-accent-glow transition-colors">{s.topic}</h3>
+                    <div className="flex items-center gap-4 pt-2">
                       <div className="flex items-center gap-1.5 text-xs text-fg-tertiary font-medium">
-                         <Clock size={14} className="text-accent-glow" /> Scheduled
+                        <Clock size={14} className="text-accent-glow" /> Scheduled
                       </div>
                       <div className="flex items-center gap-1.5 text-xs text-fg-tertiary font-medium">
-                         <MapPin size={14} className="text-accent-glow" /> The Forge
+                        <MapPin size={14} className="text-accent-glow" /> The Forge
                       </div>
-                   </div>
-                </div>
+                    </div>
+                  </div>
 
-                {/* Footer Action */}
-                <div className="pt-6 border-t border-border-subtle flex items-center justify-between">
-                   <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-fg-tertiary hover:text-accent-glow transition-colors">
+                  {/* Footer Action */}
+                  <div className="pt-6 border-t border-border-subtle flex items-center justify-between">
+                    <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-fg-tertiary hover:text-accent-glow transition-colors">
                       <Bell size={14} /> Remind Me
-                   </button>
-                   <ChevronRight size={18} className="text-fg-tertiary group-hover:translate-x-1 transition-transform" />
+                    </button>
+                    <ChevronRight size={18} className="text-fg-tertiary group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
-
-        {sessions.length === 0 && (
-          <div className="col-span-full py-20 text-center border-2 border-dashed border-border-default rounded-[2rem]">
-             <Calendar size={48} className="mx-auto mb-4 opacity-10 text-fg-tertiary" />
-             <h3 className="text-lg font-bold text-fg-primary">No upcoming sessions</h3>
-             <p className="text-sm text-fg-secondary mt-1">Check back later for the next schedule update.</p>
-          </div>
-        )}
-      </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Quick Tips */}
       <div className="card p-8 rounded-3xl border border-border-subtle bg-surface-raised/20 flex flex-col md:flex-row items-center gap-8">
-         <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
-            <CheckCircle2 size={32} />
-         </div>
-         <div className="flex-1 text-center md:text-left">
-            <h4 className="text-lg font-bold text-fg-primary">Keep your streak alive!</h4>
-            <p className="text-sm text-fg-secondary mt-1">Attending consecutive sessions builds momentum. Students with a 5+ session streak are 3x more likely to finish their capstone projects early.</p>
-         </div>
-         <button className="btn-primary px-8 py-3 rounded-xl text-sm font-bold shadow-raised whitespace-nowrap">View Curriculum</button>
+        <div className="w-16 h-16 rounded-full bg-success/10 flex items-center justify-center text-success shrink-0">
+          <CheckCircle2 size={32} />
+        </div>
+        <div className="flex-1 text-center md:text-left">
+          <h4 className="text-lg font-bold text-fg-primary">Keep your streak alive!</h4>
+          <p className="text-sm text-fg-secondary mt-1">Attending consecutive sessions builds momentum. Students with a 5+ session streak are 3x more likely to finish their capstone projects early.</p>
+        </div>
+        <button className="btn-primary px-8 py-3 rounded-xl text-sm font-bold shadow-raised whitespace-nowrap">View Curriculum</button>
       </div>
     </div>
   );

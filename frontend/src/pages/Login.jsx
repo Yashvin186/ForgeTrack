@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { authService } from '../services/auth.service';
-import { LogIn, GraduationCap, ShieldCheck, UserPlus, Sparkles } from 'lucide-react';
+import { LogIn, GraduationCap, ShieldCheck, UserPlus, Sparkles, Mail, Lock, Fingerprint } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 
 export default function Login() {
@@ -12,17 +12,21 @@ export default function Login() {
   const [isFirstUser, setIsFirstUser] = useState(false);
   const navigate = useNavigate();
 
-  useState(() => {
+  useEffect(() => {
     async function checkFirst() {
-      const empty = await authService.isUsersTableEmpty();
-      setIsFirstUser(empty);
+      try {
+        const empty = await authService.isUsersTableEmpty();
+        setIsFirstUser(empty);
+      } catch {
+        // Silent fail for first user check
+      }
     }
     checkFirst();
   }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    if (loading) return; // Guard against double clicks
+    if (loading) return; 
     
     setLoading(true);
     setError(null);
@@ -30,34 +34,23 @@ export default function Login() {
     try {
       let loginEmail = email;
       
-      // USN detection
+      // USN detection (Legacy USN to Email mapping)
       if (!email.includes('@')) {
-        console.log(`[Login] Detected USN: ${email}`);
         const mappedEmail = await authService.getEmailByUSN(email);
         if (!mappedEmail) {
-          throw new Error('Student record not found for this USN. Please use your email or contact admin.');
+          throw new Error('Student record not found for this USN.');
         }
         loginEmail = mappedEmail;
-        console.log(`[Login] USN mapped to: ${loginEmail}`);
       }
 
-      console.log(`[Login] Attempting sign in with: ${loginEmail}`);
-      const { data, error: loginError } = await authService.signIn(loginEmail, password);
+      const { error: loginError } = await authService.signIn(loginEmail, password);
       
       if (loginError) {
-        console.error('[Login] Auth service error:', loginError.message);
         throw new Error(loginError.friendlyMessage || loginError.message);
       }
 
-      console.log('[Login] Sign in successful, fetching profile...');
-      const userWithProfile = await authService.getCurrentUser();
-      
-      if (!userWithProfile?.profile) {
-         console.warn('[Login] No public.users profile found for this user');
-      }
-      
-      const role = userWithProfile?.profile?.role || userWithProfile?.user_metadata?.role || (isStudent ? 'student' : 'mentor');
-      console.log(`[Login] Authenticated as: ${role}`);
+      const session = await authService.getSession();
+      const role = session?.user?.user_metadata?.role || (isStudent ? 'student' : 'mentor');
       
       if (role === 'mentor') {
         navigate('/dashboard');
@@ -66,7 +59,6 @@ export default function Login() {
       }
       
     } catch (err) {
-      console.error('[Login] Error:', err);
       setError(err.message || 'Failed to authenticate');
     } finally {
       setLoading(false);
@@ -74,104 +66,114 @@ export default function Login() {
   };
 
   return (
-    <div className="app-main flex items-center justify-center p-6 min-h-screen dot-grid">
-      <div className="card max-w-[440px] w-full p-12 flex flex-col items-center rounded-2xl relative z-10 border border-border-default shadow-raised">
-        <div className="absolute -top-12 left-1/2 -translate-x-1/2 w-24 h-24 bg-accent-glow/20 blur-3xl -z-10" />
-        
-        <div className="w-14 h-14 bg-surface-raised border border-border-default rounded-2xl flex items-center justify-center mb-8 shadow-card">
-          <LogIn className="text-accent-glow" size={28} />
-        </div>
-        
-        <div className="text-center mb-10">
-          <h1 className="text-display-sm text-fg-primary mb-2">ForgeTrack</h1>
-          <p className="text-label text-fg-tertiary uppercase tracking-[0.2em]">The Forge AI-ML Bootcamp</p>
-        </div>
+    <div className="app-main flex items-center justify-center p-6 min-h-screen relative overflow-hidden bg-void">
+      {/* ── Background Effects ────────────────────────────────── */}
+      <div className="absolute inset-0 dot-grid opacity-40" />
+      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-accent-glow/10 blur-[120px] rounded-full" />
+      <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-info-bg/10 blur-[120px] rounded-full" />
 
-        <div className="bg-surface-inset p-1.5 rounded-xl w-full flex mb-10 border border-border-subtle shadow-inner">
-          <button
-            onClick={() => setIsStudent(true)}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-300 ${
-              isStudent 
-                ? 'bg-surface-raised text-fg-primary shadow-raised border border-border-default' 
-                : 'text-fg-tertiary hover:text-fg-secondary'
-            }`}
-          >
-            <GraduationCap size={18} />
-            Student
-          </button>
-          <button
-            onClick={() => setIsStudent(false)}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-lg text-sm font-bold transition-all duration-300 ${
-              !isStudent 
-                ? 'bg-surface-raised text-fg-primary shadow-raised border border-border-default' 
-                : 'text-fg-tertiary hover:text-fg-secondary'
-            }`}
-          >
-            <ShieldCheck size={18} />
-            Mentor
-          </button>
+      <div className="w-full max-w-[420px] space-y-8 relative z-10 animate-fade-in">
+        {/* Brand */}
+        <div className="text-center space-y-3">
+           <div className="w-16 h-16 bg-surface-raised border border-border-default rounded-2xl flex items-center justify-center mx-auto shadow-raised group hover:border-accent-glow/50 transition-all duration-500">
+              <Fingerprint className="text-accent-glow group-hover:scale-110 transition-transform" size={32} />
+           </div>
+           <div>
+              <h1 className="text-display-sm text-fg-primary tracking-tight font-black">ForgeTrack</h1>
+              <p className="text-[10px] text-fg-tertiary uppercase tracking-[0.25em] font-black">Production Auth Gateway</p>
+           </div>
         </div>
 
-        <form className="w-full space-y-7" onSubmit={handleLogin}>
-          <div className="space-y-2.5">
-            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">Email or USN</label>
-            <input
-              type="text"
-              placeholder="e.g. 4SH22CS000 or email"
-              className="input w-full"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
+        {/* Card */}
+        <div className="card p-10 border border-border-default rounded-[2.5rem] bg-canvas/40 backdrop-blur-3xl shadow-raised relative overflow-hidden">
+           <div className="absolute inset-0 bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none" />
+           
+           {/* Role Switcher */}
+           <div className="bg-surface-inset p-1 rounded-2xl flex mb-10 border border-border-subtle">
+              <button
+                onClick={() => setIsStudent(true)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                  isStudent ? 'bg-surface-raised text-fg-primary shadow-sm border border-border-default' : 'text-fg-tertiary hover:text-fg-secondary'
+                }`}
+              >
+                <GraduationCap size={16} /> Student
+              </button>
+              <button
+                onClick={() => setIsStudent(false)}
+                className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all duration-300 ${
+                  !isStudent ? 'bg-surface-raised text-fg-primary shadow-sm border border-border-default' : 'text-fg-tertiary hover:text-fg-secondary'
+                }`}
+              >
+                <ShieldCheck size={16} /> Mentor
+              </button>
+           </div>
 
-          <div className="space-y-2.5">
-            <label className="text-micro text-fg-secondary uppercase tracking-widest font-bold ml-1">Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              className="input w-full"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
+           <form className="space-y-6" onSubmit={handleLogin}>
+              <div className="space-y-2">
+                 <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black ml-1">Access Credential</label>
+                 <div className="relative group">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary group-focus-within:text-accent-glow transition-colors" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Email or USN"
+                      className="input w-full pl-12 h-12 bg-surface-inset/50 border-border-subtle"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                 </div>
+              </div>
 
-          {isFirstUser && (
-            <div className="p-4 bg-accent-glow/10 border border-accent-glow/20 rounded-xl text-accent-glow text-[13px] flex flex-col gap-1 animate-in fade-in slide-in-from-top-2">
-              <p className="font-bold flex items-center gap-2">
-                <Sparkles size={14} /> Welcome to ForgeTrack
-              </p>
-              <p className="opacity-80">The system is ready. Please sign up to create the first mentor account.</p>
-            </div>
-          )}
+              <div className="space-y-2">
+                 <label className="text-[10px] text-fg-tertiary uppercase tracking-widest font-black ml-1">Passkey</label>
+                 <div className="relative group">
+                    <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary group-focus-within:text-accent-glow transition-colors" size={18} />
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      className="input w-full pl-12 h-12 bg-surface-inset/50 border-border-subtle"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                 </div>
+              </div>
 
-          {error && (
-            <div className="p-4 bg-danger-bg border border-danger-border rounded-xl text-danger text-[13px] flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-danger" />
-              {error}
-            </div>
-          )}
+              {isFirstUser && (
+                <div className="p-4 bg-accent-glow/5 border border-accent-glow/20 rounded-2xl text-[11px] text-accent-glow leading-relaxed flex gap-3">
+                   <Sparkles size={16} className="shrink-0" />
+                   <span>The system is in initial bootstrap mode. Create the first mentor account to begin.</span>
+                </div>
+              )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="btn-primary w-full flex items-center justify-center gap-2 mt-4 py-4 text-base font-black shadow-raised active:scale-[0.97] transition-all duration-200"
-          >
-            {loading ? 'AUTHENTICATING...' : 'SIGN IN TO TRACK'}
-          </button>
-        </form>
+              {error && (
+                <div className="p-4 bg-danger-bg border border-danger-border rounded-2xl text-[11px] text-danger font-bold flex items-center gap-3 animate-fade-in">
+                   <div className="w-1.5 h-1.5 rounded-full bg-danger" />
+                   {error}
+                </div>
+              )}
 
-        <div className="mt-10 flex flex-col items-center gap-4">
-          <p className="text-fg-tertiary text-[11px] font-bold uppercase tracking-widest">
-            New to The Forge?
-          </p>
-          <Link 
-            to="/signup" 
-            className="flex items-center gap-2 text-accent-glow font-bold text-sm hover:underline"
-          >
-            <UserPlus size={16} /> Create an Account
-          </Link>
+              <button
+                type="submit"
+                disabled={loading}
+                className="btn-primary w-full py-4 text-sm font-black uppercase tracking-[0.15em] flex items-center justify-center gap-3 shadow-lg shadow-accent-glow/20 mt-4 disabled:opacity-50"
+              >
+                {loading ? <><div className="w-4 h-4 border-2 border-void/30 border-t-void rounded-full animate-spin" /> Verifying</> : <><LogIn size={18} /> Authenticate</>}
+              </button>
+           </form>
+        </div>
+
+        {/* Footer Link */}
+        <div className="text-center">
+           <p className="text-fg-tertiary text-xs font-bold uppercase tracking-widest">
+              Unregistered User?
+           </p>
+           <Link 
+             to="/signup" 
+             className="inline-flex items-center gap-2 text-accent-glow font-black text-sm mt-3 hover:opacity-80 transition-opacity"
+           >
+             Initialize Secure Account <UserPlus size={16} />
+           </Link>
         </div>
       </div>
     </div>

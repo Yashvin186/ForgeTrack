@@ -15,61 +15,110 @@ const mapAuthError = (error) => {
 
 export const authService = {
   async signIn(email, password) {
-    console.log(`[Auth] Attempting sign in for: ${email}`);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
-    if (error) {
-      console.error('[Auth] Sign in error:', error.message);
-      return { data: null, error: { ...error, friendlyMessage: mapAuthError(error) } };
-    }
+    console.log(`[Auth] 🔑 Initiating login sequence for: ${email}`);
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      
+      if (error) {
+        console.error('[Auth] ❌ Supabase Auth error:', error.message);
+        return { data: null, error: { ...error, friendlyMessage: mapAuthError(error) } };
+      }
 
-    console.log('[Auth] Sign in successful:', data.user.email);
-    return { data, error: null };
+      if (!data.session || !data.user) {
+        console.error('[Auth] ❌ Partial auth success: Session or User missing');
+        return { data: null, error: { message: 'Incomplete session data received', friendlyMessage: 'Authentication failed: Incomplete session.' } };
+      }
+
+      console.log('[Auth] ✅ Login successful. User:', data.user.id, 'Role:', data.user.user_metadata?.role);
+      return { data, error: null };
+    } catch (err) {
+      console.error('[Auth] 💥 Fatal Login Exception:', err.message);
+      return { data: null, error: { message: err.message, friendlyMessage: 'The authentication server did not respond. Please try again.' } };
+    }
   },
 
   async signUp(email, password, metadata) {
     console.log(`[Auth] Attempting sign up for: ${email}`, metadata);
     
-    // Check if user exists in public.users first to avoid redundant auth calls if possible
-    // (Note: This is a partial check, the real check is in Supabase Auth)
-    
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: metadata,
-        // Disable email confirmation for dev if needed, 
-        // but it's mainly a server-side setting.
+    try {
+      // 1. Create the Auth user
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: metadata,
+          // Redirect URL if needed, but using local confirmation for now
+          emailRedirectTo: `${window.location.origin}/login`
+        }
+      });
+      
+      if (error) {
+        console.error('[Auth] Supabase Auth sign up error:', error.message);
+        return { data: null, error: { ...error, friendlyMessage: mapAuthError(error) } };
       }
-    });
-    
-    if (error) {
-      console.error('[Auth] Sign up error:', error.message);
-      return { data: null, error: { ...error, friendlyMessage: mapAuthError(error) } };
-    }
 
-    console.log('[Auth] Sign up success:', data);
-    
-    // If user is already created but not confirmed, data.user might still exist
-    if (data.user) {
-      // User requested manual insertion into public.users
+      const user = data.user;
+      if (!user) {
+        console.warn('[Auth] Sign up success but no user returned (might need confirmation)');
+        return { data, error: null };
+      }
+
+      console.log('[Auth] Auth account created. Syncing profile to public.users...', user.id);
+
+      // 2. Insert into public.users
+      // We do this to ensure RLS and application logic works with a unified users table
       const { error: profileError } = await supabase
         .from('users')
         .insert({
-          id: data.user.id,
-          email: data.user.email,
+          id: user.id,
+          email: user.email,
           role: metadata.role || 'student',
-          display_name: metadata.display_name || metadata.name || data.user.email,
-          student_id: metadata.student_id || null
+          display_name: metadata.display_name || metadata.name || user.email,
+          student_id: metadata.student_id || null,
+          created_at: new Date().toISOString()
         });
 
       if (profileError) {
-        console.error('[Auth] Profile creation error:', profileError.message);
-        // We don't return error here because the Auth account is already created
+        console.error('[Auth] Profile sync failed:', profileError.message);
+        // Note: We don't fail the whole signup because Auth account exists, 
+        // but UserContext will fallback to metadata.
       }
-    }
 
-    return { data, error: null };
+      // 3. Create student record if needed
+      if (metadata.role === 'student' && !metadata.student_id) {
+        console.log('[Auth] Student signup detected without existing record. Creating student entry...');
+        const { data: newStudent, error: studentError } = await supabase
+          .from('students')
+          .insert({
+            name: metadata.display_name || metadata.name,
+            email: user.email,
+            usn: (metadata.usn || '').toUpperCase(),
+            branch_code: 'CS', // Default for new signups
+            is_active: true,
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (studentError) {
+          console.error('[Auth] Student record creation failed:', studentError.message);
+        } else if (newStudent) {
+          console.log('[Auth] Student record created successfully:', newStudent.id);
+          // Update the users table with the new student_id
+          await supabase
+            .from('users')
+            .update({ student_id: newStudent.id })
+            .eq('id', user.id);
+        }
+      }
+
+      console.log('[Auth] Full Signup sequence completed for:', user.email);
+      return { data, error: null };
+
+    } catch (err) {
+      console.error('[Auth] Critical Signup Exception:', err);
+      return { data: null, error: { message: err.message, friendlyMessage: 'Account creation failed. Please try again.' } };
+    }
   },
 
   async signOut() {
@@ -108,22 +157,49 @@ export const authService = {
   },
 
   async isUsersTableEmpty() {
-    const { count, error } = await supabase
-      .from('users')
-      .select('*', { count: 'exact', head: true });
-    if (error) return false;
-    return count === 0;
+    console.log('[Auth] Checking if users table is empty...');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    
+    try {
+      const { count, error } = await supabase
+        .from('users')
+        .select('*', { count: 'exact', head: true });
+      
+      clearTimeout(timeout);
+      if (error) {
+        console.warn('[Auth] isUsersTableEmpty error:', error.message);
+        return false;
+      }
+      return count === 0;
+    } catch (err) {
+      console.warn('[Auth] isUsersTableEmpty exception:', err.message);
+      return false;
+    }
   },
 
   async getEmailByUSN(usn) {
-    const { data, error } = await supabase
-      .from('students')
-      .select('email')
-      .eq('usn', usn.toUpperCase())
-      .maybeSingle();
-    
-    if (error || !data) return null;
-    return data.email;
+    console.log(`[Auth] Mapping USN ${usn} to email...`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('email')
+        .eq('usn', usn.toUpperCase())
+        .maybeSingle();
+      
+      clearTimeout(timeout);
+      if (error || !data) {
+        console.warn('[Auth] USN mapping failed or not found');
+        return null;
+      }
+      return data.email;
+    } catch (err) {
+      console.error('[Auth] USN mapping exception:', err.message);
+      return null;
+    }
   },
 
   async updateProfile(userId, updates) {
